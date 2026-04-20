@@ -1,0 +1,1173 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const telegramApi = require('./api/telegram.cjs');
+const notificationService = require('./api/notifications.cjs');
+const { createClient } = require('@supabase/supabase-js');
+const axios = require('axios'); // Для HTTP-запросов к API Bitrix24
+const cron = require('node-cron'); // Для планирования задач синхронизации
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Константы для Supabase
+const SUPABASE_URL = "https://jwbimzysqrzsqvhdztvz.supabase.co";
+const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3YmltenlzcXJ6c3F2aGR6dHZ6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjA2NDczMCwiZXhwIjoyMDU3NjQwNzMwfQ.qURyy_MTx2SOEwRag5CxQb1l4zBYSksq23QEVBLORtQ";
+
+// Константы для Bitrix24 API
+const BITRIX_WEBHOOK_URL = process.env.BITRIX_WEBHOOK_URL || "https://yourdomain.bitrix24.ru/rest/1/your_webhook_key";
+
+// Константы для настройки синхронизации
+const SYNC_SCHEDULE = process.env.SYNC_SCHEDULE || '0 */4 * * *'; // По умолчанию каждые 4 часа
+const SYNC_LIMIT = parseInt(process.env.SYNC_LIMIT || '50', 10); // Лимит записей для синхронизации
+const SYNC_RETRY_ATTEMPTS = parseInt(process.env.SYNC_RETRY_ATTEMPTS || '3', 10); // Количество попыток синхронизации
+const SYNC_RETRY_DELAY = parseInt(process.env.SYNC_RETRY_DELAY || '60000', 10); // Задержка между попытками в мс
+
+// Создаем клиент Supabase с сервисным ключом
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+// Объект для хранения информации о синхронизации
+const syncStatus = {
+  lastSync: null,
+  lastSyncStatus: null,
+  inProgress: false,
+  totalSynced: 0,
+  totalConverted: 0,
+  errors: [],
+  lastError: null,
+  syncHistory: []
+};
+
+app.use(cors());
+app.use(bodyParser.json());
+
+// Middleware для проверки ролей пользователя
+const authMiddleware = (allowedRoles) => async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Требуется авторизация' });
+  }
+  
+  try {
+    // Проверяем JWT токен
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    
+    if (error || !user) {
+      return res.status(401).json({ error: 'Неверный токен авторизации' });
+    }
+    
+    // Получаем роль пользователя
+    const { data: profileData } = await supabaseAdmin
+      .from('user_profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profileData || !allowedRoles.includes(profileData.role)) {
+      return res.status(403).json({ error: 'Недостаточно прав для выполнения операции' });
+    }
+    
+    // Добавляем информацию о пользователе в запрос
+    req.user = { ...user, role: profileData.role };
+  next();
+  } catch (error) {
+    console.error('Ошибка проверки авторизации:', error);
+    res.status(500).json({ error: 'Ошибка сервера при проверке авторизации' });
+  }
+};
+
+// === Маршруты для работы с формами и CRM ===
+
+// Обработка отправки формы
+app.post('/api/forms/submit', async (req, res) => {
+  try {
+    const formData = req.body;
+    
+    if (!formData || !formData.form_type) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Неверные данные формы' 
+      });
+    }
+    
+    console.log(`Получена форма типа ${formData.form_type}`);
+    
+    // 1. Сохраняем данные формы в Supabase
+    const { data: submissionData, error: submissionError } = await supabaseAdmin
+      .from('form_submissions')
+      .insert({
+        form_type: formData.form_type,
+        topic: formData.topic || 'Общий вопрос',
+        custom_topic: formData.custom_topic,
+        source: formData.source || 'website',
+        data: {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          message: formData.message,
+          projectTitle: formData.projectTitle
+        },
+        status: 'new'
+      })
+      .select()
+      .single();
+    
+    if (submissionError) {
+      console.error('Ошибка сохранения формы в БД:', submissionError);
+      throw new Error(`Ошибка сохранения формы: ${submissionError.message}`);
+    }
+    
+    // 2. Отправляем данные в Bitrix24
+    try {
+      const bitrixData = await sendToBitrix24(formData);
+      console.log('Форма успешно отправлена в Bitrix24:', bitrixData.id);
+      
+      // Обновляем запись с ID из Bitrix
+      if (bitrixData && bitrixData.id) {
+        await supabaseAdmin
+          .from('form_submissions')
+          .update({ 
+            external_id: bitrixData.id,
+            external_data: bitrixData
+          })
+          .eq('id', submissionData.id);
+      }
+    } catch (bitrixError) {
+      console.error('Ошибка отправки в Bitrix24:', bitrixError);
+      // Продолжаем выполнение, даже если отправка в Bitrix не удалась
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Форма успешно отправлена',
+      data: {
+        id: submissionData.id
+      }
+    });
+  } catch (error) {
+    console.error('Ошибка обработки формы:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Ошибка обработки формы'
+    });
+  }
+});
+
+// Отправка данных в Bitrix24
+async function sendToBitrix24(formData) {
+  try {
+    // Формируем данные для отправки в Bitrix24
+    const bitrixLeadData = {
+      TITLE: `${formData.form_type === 'callback' ? 'Заявка на звонок' : 'Форма с сайта'}: ${formData.topic || 'Общий вопрос'}`,
+      NAME: formData.name || '',
+      EMAIL: [{ VALUE: formData.email, VALUE_TYPE: 'WORK' }],
+      PHONE: [{ VALUE: formData.phone, VALUE_TYPE: 'WORK' }],
+      COMMENTS: formData.message || '',
+      SOURCE_ID: 'WEB',
+      SOURCE_DESCRIPTION: `Форма типа: ${formData.form_type}, Источник: ${formData.source || 'website'}`
+    };
+    
+    // Отправляем запрос в Bitrix24
+    const response = await axios.post(`${BITRIX_WEBHOOK_URL}/crm.lead.add`, {
+      fields: bitrixLeadData,
+      params: { REGISTER_SONET_EVENT: 'Y' }
+    });
+    
+    if (response.data && response.data.result) {
+      return { id: response.data.result, ...response.data };
+    } else {
+      throw new Error('Неверный ответ от Bitrix24 API');
+    }
+  } catch (error) {
+    console.error('Ошибка при отправке в Bitrix24:', error);
+    throw error;
+  }
+}
+
+// Функция для выполнения синхронизации данных из Bitrix24 с повторными попытками
+async function syncBitrixDataWithRetry(limit = SYNC_LIMIT, maxAttempts = SYNC_RETRY_ATTEMPTS) {
+  // Если синхронизация уже идет, не запускаем новую
+  if (syncStatus.inProgress) {
+    console.log('⚠️ Синхронизация уже выполняется, пропускаем новый запуск');
+    return {
+      success: false,
+      error: 'Синхронизация уже выполняется'
+    };
+  }
+
+  syncStatus.inProgress = true;
+  syncStatus.lastSync = new Date();
+  
+  let attempt = 1;
+  let result = null;
+  
+  while (attempt <= maxAttempts) {
+    try {
+      console.log(`🔄 Попытка синхронизации с Bitrix24 ${attempt}/${maxAttempts}, лимит: ${limit}`);
+      
+      // Получаем список лидов из Bitrix24
+      const response = await axios.post(`${BITRIX_WEBHOOK_URL}/crm.lead.list`, {
+        order: { DATE_CREATE: 'DESC' },
+        filter: { '>DATE_CREATE': new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() },
+        select: ['ID', 'TITLE', 'NAME', 'LAST_NAME', 'EMAIL', 'PHONE', 'STATUS_ID', 'SOURCE_ID', 'DATE_CREATE', 'COMMENTS'],
+        start: 0
+      });
+      
+      if (!response.data || !response.data.result) {
+        throw new Error('Неверный ответ от Bitrix24 API');
+      }
+      
+      const leads = response.data.result.slice(0, limit);
+      console.log(`📋 Получено ${leads.length} лидов из Bitrix24`);
+      
+      // Сохраняем лиды в БД
+      let syncedCount = 0;
+      let convertedCount = 0;
+      
+      for (const lead of leads) {
+        // Проверяем существование лида в БД
+        const { data: existingLead } = await supabaseAdmin
+          .from('bitrix_leads')
+          .select('id, updated_at')
+          .eq('lead_id', lead.ID)
+          .maybeSingle();
+        
+        // Получаем данные контакта
+        const email = lead.EMAIL && lead.EMAIL[0] ? lead.EMAIL[0].VALUE : null;
+        const phone = lead.PHONE && lead.PHONE[0] ? lead.PHONE[0].VALUE : null;
+        
+        if (existingLead) {
+          // Обновляем существующий лид, только если он изменился
+          const lastUpdated = new Date(existingLead.updated_at);
+          const leadCreated = new Date(lead.DATE_CREATE);
+          
+          // Проверяем, был ли лид обновлен в Bitrix после последней синхронизации
+          if (leadCreated > lastUpdated) {
+            await supabaseAdmin
+              .from('bitrix_leads')
+              .update({
+                title: lead.TITLE,
+                name: lead.NAME,
+                last_name: lead.LAST_NAME,
+                email: email,
+                phone: phone,
+                status_id: lead.STATUS_ID,
+                source_id: lead.SOURCE_ID,
+                updated_at: new Date().toISOString(),
+                raw_data: lead,
+                last_sync: new Date().toISOString()
+              })
+              .eq('lead_id', lead.ID);
+              
+            console.log(`✏️ Обновлен лид #${lead.ID}`);
+          } else {
+            console.log(`⏭️ Лид #${lead.ID} не изменился, пропускаем обновление`);
+          }
+        } else {
+          // Создаем новый лид
+          await supabaseAdmin
+            .from('bitrix_leads')
+            .insert({
+              lead_id: lead.ID,
+              title: lead.TITLE,
+              name: lead.NAME,
+              last_name: lead.LAST_NAME,
+              email: email,
+              phone: phone,
+              status_id: lead.STATUS_ID,
+              source_id: lead.SOURCE_ID,
+              created_at: new Date(lead.DATE_CREATE).toISOString(),
+              raw_data: lead,
+              last_sync: new Date().toISOString()
+            });
+            
+          console.log(`➕ Добавлен новый лид #${lead.ID}`);
+        }
+        
+        // Всегда проверяем и конвертируем лиды в заявки с форм
+        const { data: existingForm } = await supabaseAdmin
+          .from('form_submissions')
+          .select('id, status')
+          .eq('external_id', lead.ID)
+          .maybeSingle();
+          
+        if (!existingForm) {
+          // Определяем тип формы на основе заголовка или источника
+          let formType = 'contact'; // По умолчанию
+          if (lead.TITLE && lead.TITLE.toLowerCase().includes('звонок')) {
+            formType = 'callback';
+          } else if (lead.TITLE && lead.TITLE.toLowerCase().includes('консультац')) {
+            formType = 'consultation';
+          }
+          
+          // Определяем статус
+          let status = 'new';
+          if (lead.STATUS_ID === 'CONVERTED' || lead.STATUS_ID === 'WON') {
+            status = 'completed';
+          } else if (lead.STATUS_ID === 'IN_PROCESS') {
+            status = 'processing';
+          } else if (lead.STATUS_ID === 'JUNK') {
+            status = 'rejected';
+          }
+          
+          // Создаем новую запись в таблице form_submissions
+          await supabaseAdmin
+            .from('form_submissions')
+            .insert({
+              form_type: formType,
+              topic: lead.TITLE || 'Заявка из Bitrix24',
+              source: 'bitrix24',
+              data: {
+                name: `${lead.NAME || ''} ${lead.LAST_NAME || ''}`.trim(),
+                email: email || '',
+                phone: phone || '',
+                message: lead.COMMENTS || '',
+              },
+              status: status,
+              created_at: new Date(lead.DATE_CREATE).toISOString(),
+              external_id: lead.ID,
+              external_data: lead
+            });
+            
+          console.log(`🔄 Лид #${lead.ID} конвертирован в форму`);
+          convertedCount++;
+        } else if (existingForm && lead.STATUS_ID) {
+          // Обновляем статус формы, если статус в Bitrix изменился
+          let formStatus = existingForm.status;
+          let shouldUpdate = false;
+          
+          if (lead.STATUS_ID === 'CONVERTED' || lead.STATUS_ID === 'WON') {
+            formStatus = 'completed';
+            shouldUpdate = existingForm.status !== 'completed';
+          } else if (lead.STATUS_ID === 'IN_PROCESS') {
+            formStatus = 'processing';
+            shouldUpdate = existingForm.status !== 'processing';
+          } else if (lead.STATUS_ID === 'JUNK') {
+            formStatus = 'rejected';
+            shouldUpdate = existingForm.status !== 'rejected';
+          }
+          
+          if (shouldUpdate) {
+            await supabaseAdmin
+              .from('form_submissions')
+              .update({ 
+                status: formStatus,
+                processed: ['completed', 'rejected'].includes(formStatus),
+                processed_at: ['completed', 'rejected'].includes(formStatus) ? new Date().toISOString() : null
+              })
+              .eq('id', existingForm.id);
+              
+            console.log(`🔄 Обновлен статус формы для лида #${lead.ID}: ${formStatus}`);
+          }
+        }
+        
+        syncedCount++;
+      }
+      
+      // Сохраняем результат успешной синхронизации
+      result = {
+        success: true,
+        synced: syncedCount,
+        converted: convertedCount,
+        timestamp: new Date().toISOString()
+      };
+      
+      syncStatus.lastSyncStatus = 'success';
+      syncStatus.totalSynced += syncedCount;
+      syncStatus.totalConverted += convertedCount;
+      syncStatus.syncHistory.push(result);
+      
+      // Ограничиваем историю синхронизаций до 10 записей
+      if (syncStatus.syncHistory.length > 10) {
+        syncStatus.syncHistory = syncStatus.syncHistory.slice(-10);
+      }
+      
+      console.log(`✅ Синхронизация успешно завершена, обработано лидов: ${syncedCount}, конвертировано в формы: ${convertedCount}`);
+      break; // Выходим из цикла попыток при успехе
+    } catch (error) {
+      const errorMessage = error.message || 'Неизвестная ошибка синхронизации';
+      console.error(`❌ Ошибка синхронизации (попытка ${attempt}/${maxAttempts}):`, errorMessage);
+      
+      // Записываем ошибку
+      syncStatus.lastSyncStatus = 'error';
+      syncStatus.lastError = {
+        message: errorMessage,
+        timestamp: new Date().toISOString(),
+        attempt
+      };
+      syncStatus.errors.push(syncStatus.lastError);
+      
+      // Ограничиваем список ошибок до 10
+      if (syncStatus.errors.length > 10) {
+        syncStatus.errors = syncStatus.errors.slice(-10);
+      }
+      
+      // Если это не последняя попытка, ждем перед следующей
+      if (attempt < maxAttempts) {
+        const delay = SYNC_RETRY_DELAY * attempt; // Увеличиваем задержку с каждой попыткой
+        console.log(`⏳ Ожидание ${delay/1000} секунд перед следующей попыткой...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        attempt++;
+      } else {
+        // Все попытки исчерпаны
+        result = {
+          success: false,
+          error: errorMessage,
+          attempts: attempt,
+          timestamp: new Date().toISOString()
+        };
+        
+        syncStatus.syncHistory.push(result);
+        
+        // Ограничиваем историю синхронизаций до 10 записей
+        if (syncStatus.syncHistory.length > 10) {
+          syncStatus.syncHistory = syncStatus.syncHistory.slice(-10);
+        }
+      }
+    }
+  }
+  
+  syncStatus.inProgress = false;
+  return result;
+}
+
+// Получение статуса синхронизации
+app.get('/api/admin/sync-status', authMiddleware(['admin', 'manager']), (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      ...syncStatus,
+      nextScheduledSync: getNextScheduledSync()
+    }
+  });
+});
+
+// Функция для получения времени следующей запланированной синхронизации
+function getNextScheduledSync() {
+  try {
+    const cronInstance = cron.schedule(SYNC_SCHEDULE, () => {});
+    const nextDate = cronInstance.nextDate();
+    cronInstance.stop();
+    return nextDate.toISOString();
+  } catch (error) {
+    console.error('Ошибка при определении следующей синхронизации:', error);
+    return null;
+  }
+}
+
+// Ручной запуск синхронизации
+app.post('/api/admin/sync-bitrix', authMiddleware(['admin', 'manager']), async (req, res) => {
+  try {
+    const { limit = SYNC_LIMIT, force = false } = req.body;
+    
+    // Если синхронизация уже идет и не указан флаг force, возвращаем ошибку
+    if (syncStatus.inProgress && !force) {
+      return res.status(409).json({
+        success: false,
+        error: 'Синхронизация уже выполняется. Установите force=true для принудительного запуска.',
+        status: syncStatus
+      });
+    }
+    
+    // Если указан флаг force, сбрасываем статус
+    if (force && syncStatus.inProgress) {
+      console.log('⚠️ Принудительный запуск синхронизации, сброс предыдущего состояния');
+      syncStatus.inProgress = false;
+    }
+    
+    console.log(`🔄 Ручной запуск синхронизации с Bitrix24, лимит: ${limit}`);
+    
+    // Запускаем синхронизацию асинхронно
+    const syncPromise = syncBitrixDataWithRetry(limit);
+    
+    res.json({
+      success: true,
+      message: 'Синхронизация запущена',
+      status: {
+        ...syncStatus,
+        nextScheduledSync: getNextScheduledSync()
+      }
+    });
+    
+    // Ждем завершения синхронизации (но не блокируем ответ)
+    await syncPromise;
+    
+  } catch (error) {
+    console.error('Ошибка при запуске синхронизации:', error);
+    syncStatus.inProgress = false;
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Непредвиденная ошибка при запуске синхронизации'
+    });
+  }
+});
+
+// Конвертация существующих лидов Bitrix24 в формы
+app.post('/api/admin/convert-leads-to-forms', authMiddleware(['admin', 'manager']), async (req, res) => {
+  try {
+    const { limit = 100, overwrite = false } = req.body;
+    
+    console.log(`Запуск конвертации лидов в формы, лимит: ${limit}, перезаписывать: ${overwrite}`);
+    
+    // Получаем лиды из Bitrix, которые еще не конвертированы в формы
+    let query = supabaseAdmin
+      .from('bitrix_leads')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+      
+    // Если не перезаписываем, исключаем те лиды, которые уже есть в form_submissions
+    if (!overwrite) {
+      // Сначала получаем список ID лидов, которые уже есть в form_submissions
+      const { data: existingForms } = await supabaseAdmin
+        .from('form_submissions')
+        .select('external_id')
+        .not('external_id', 'is', null);
+        
+      if (existingForms && existingForms.length > 0) {
+        const existingIds = existingForms.map(form => form.external_id);
+        query = query.not('lead_id', 'in', `(${existingIds.join(',')})`);
+      }
+    }
+    
+    const { data: leads, error } = await query;
+    
+    if (error) {
+      throw new Error(`Ошибка получения лидов: ${error.message}`);
+    }
+    
+    if (!leads || leads.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Нет новых лидов для конвертации',
+        count: 0
+      });
+    }
+    
+    console.log(`Найдено ${leads.length} лидов для конвертации`);
+    
+    let convertedCount = 0;
+    
+    for (const lead of leads) {
+      // Если перезаписываем, удаляем существующую форму с таким external_id
+      if (overwrite) {
+        await supabaseAdmin
+          .from('form_submissions')
+          .delete()
+          .eq('external_id', lead.lead_id);
+      }
+      
+      // Определяем тип формы на основе заголовка или источника
+      let formType = 'contact'; // По умолчанию
+      if (lead.title && lead.title.toLowerCase().includes('звонок')) {
+        formType = 'callback';
+      } else if (lead.title && lead.title.toLowerCase().includes('консультац')) {
+        formType = 'consultation';
+      }
+      
+      // Определяем статус
+      let status = 'new';
+      if (lead.status_id === 'CONVERTED' || lead.status_id === 'WON') {
+        status = 'completed';
+      } else if (lead.status_id === 'IN_PROCESS') {
+        status = 'processing';
+      } else if (lead.status_id === 'JUNK') {
+        status = 'rejected';
+      }
+      
+      // Создаем новую запись в таблице form_submissions
+      const { error: insertError } = await supabaseAdmin
+        .from('form_submissions')
+        .insert({
+          form_type: formType,
+          topic: lead.title || 'Заявка из Bitrix24',
+          source: 'bitrix24',
+          data: {
+            name: `${lead.name || ''} ${lead.last_name || ''}`.trim(),
+            email: lead.email || '',
+            phone: lead.phone || '',
+            message: lead.raw_data && lead.raw_data.COMMENTS ? lead.raw_data.COMMENTS : '',
+          },
+          status: status,
+          created_at: lead.created_at,
+          external_id: lead.lead_id,
+          external_data: lead.raw_data || lead
+        });
+        
+      if (insertError) {
+        console.error(`Ошибка при конвертации лида ${lead.lead_id}:`, insertError);
+        continue;
+      }
+      
+      convertedCount++;
+    }
+    
+    console.log(`Конвертация завершена, обработано лидов: ${convertedCount}`);
+    
+    res.json({
+      success: true,
+      message: `Конвертировано ${convertedCount} из ${leads.length} лидов в формы`,
+      count: convertedCount,
+      total: leads.length
+    });
+  } catch (error) {
+    console.error('Ошибка конвертации лидов в формы:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Ошибка конвертации лидов в формы'
+    });
+  }
+});
+
+// Обновление статуса заявки
+app.patch('/api/forms/:id/status', authMiddleware(['admin', 'manager']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!status || !['new', 'processing', 'completed', 'rejected'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Неверный статус'
+      });
+    }
+    
+    // Получаем текущие данные заявки
+    const { data: formData, error: getError } = await supabaseAdmin
+      .from('form_submissions')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (getError) {
+      throw new Error(`Ошибка получения данных заявки: ${getError.message}`);
+    }
+    
+    // Обновляем статус в нашей БД
+    const { data, error } = await supabaseAdmin
+      .from('form_submissions')
+      .update({ 
+        status,
+        processed: ['completed', 'rejected'].includes(status),
+        processed_at: ['completed', 'rejected'].includes(status) ? new Date().toISOString() : null
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      throw new Error(`Ошибка обновления статуса: ${error.message}`);
+    }
+    
+    // Если есть external_id (ID в Bitrix24), обновляем статус и там
+    if (formData.external_id) {
+      try {
+        // Преобразуем наш статус в статус Bitrix24
+        let bitrixStatus = 'NEW';
+        if (status === 'processing') bitrixStatus = 'IN_PROCESS';
+        else if (status === 'completed') bitrixStatus = 'CONVERTED';
+        else if (status === 'rejected') bitrixStatus = 'JUNK';
+        
+        // Отправляем запрос в Bitrix24 для обновления статуса
+        const bitrixResponse = await axios.post(`${BITRIX_WEBHOOK_URL}/crm.lead.update`, {
+          id: formData.external_id,
+          fields: {
+            STATUS_ID: bitrixStatus
+          }
+        });
+        
+        if (bitrixResponse.data && bitrixResponse.data.result) {
+          console.log(`✅ Статус лида #${formData.external_id} обновлен в Bitrix24: ${bitrixStatus}`);
+        } else {
+          console.warn(`⚠️ Неожиданный ответ от Bitrix24 при обновлении статуса лида #${formData.external_id}: ${JSON.stringify(bitrixResponse.data)}`);
+        }
+      } catch (bitrixError) {
+        console.error(`❌ Ошибка обновления статуса в Bitrix24: ${bitrixError.message}`);
+        // Продолжаем выполнение даже при ошибке обновления в Bitrix24
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Статус успешно обновлен' + (formData.external_id ? ' (включая Bitrix24)' : ''),
+      data
+    });
+  } catch (error) {
+    console.error('Ошибка обновления статуса заявки:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Ошибка обновления статуса'
+    });
+  }
+});
+
+// Закрепление/открепление заявки
+app.patch('/api/forms/:id/pin', authMiddleware(['admin', 'manager']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_pinned } = req.body;
+    
+    const { data, error } = await supabaseAdmin
+      .from('form_submissions')
+      .update({ 
+        is_pinned: !!is_pinned,
+        pinned_at: is_pinned ? new Date().toISOString() : null
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      throw new Error(`Ошибка при изменении статуса закрепления: ${error.message}`);
+    }
+    
+    res.json({
+      success: true,
+      message: is_pinned ? 'Заявка закреплена' : 'Заявка откреплена',
+      data
+    });
+  } catch (error) {
+    console.error('Ошибка при изменении статуса закрепления:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Ошибка при изменении статуса закрепления'
+    });
+  }
+});
+
+// Настройка таблиц в Supabase - выполняет SQL для создания таблиц
+app.post('/api/admin/setup-forms-tables', authMiddleware(['admin']), async (req, res) => {
+  try {
+    // SQL для создания таблиц
+    const createTablesSql = `
+    -- Таблица для хранения всех форм с сайта
+    CREATE TABLE IF NOT EXISTS public.form_submissions (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        form_type TEXT NOT NULL CHECK (form_type IN ('contact', 'consultation', 'comment', 'callback')),
+        topic TEXT NOT NULL,
+        custom_topic TEXT,
+        source TEXT,
+        data JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+        processed BOOLEAN DEFAULT FALSE,
+        processed_at TIMESTAMP WITH TIME ZONE,
+        user_id UUID REFERENCES auth.users(id),
+        status TEXT DEFAULT 'new',
+        is_pinned BOOLEAN DEFAULT FALSE,
+        pinned_at TIMESTAMP WITH TIME ZONE,
+        external_id TEXT,
+        external_data JSONB
+    );
+
+    -- Создаем индексы для быстрого поиска
+    CREATE INDEX IF NOT EXISTS idx_form_submissions_form_type ON public.form_submissions(form_type);
+    CREATE INDEX IF NOT EXISTS idx_form_submissions_created_at ON public.form_submissions(created_at);
+    CREATE INDEX IF NOT EXISTS idx_form_submissions_status ON public.form_submissions(status);
+    CREATE INDEX IF NOT EXISTS idx_form_submissions_is_pinned ON public.form_submissions(is_pinned);
+
+    -- Таблица для хранения данных о лидах из Bitrix24
+    CREATE TABLE IF NOT EXISTS public.bitrix_leads (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        lead_id TEXT NOT NULL UNIQUE,
+        title TEXT,
+        name TEXT,
+        last_name TEXT,
+        email TEXT,
+        phone TEXT,
+        status_id TEXT,
+        source_id TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+        raw_data JSONB,
+        last_sync TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+
+    -- Создаем индексы для быстрого поиска
+    CREATE INDEX IF NOT EXISTS idx_bitrix_leads_lead_id ON public.bitrix_leads(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_bitrix_leads_email ON public.bitrix_leads(email);
+    CREATE INDEX IF NOT EXISTS idx_bitrix_leads_phone ON public.bitrix_leads(phone);
+
+    -- Таблица для связи форм с проектами
+    CREATE TABLE IF NOT EXISTS public.project_form_links (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        project_id TEXT NOT NULL,
+        form_id UUID NOT NULL REFERENCES public.form_submissions(id),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+        UNIQUE(project_id, form_id)
+    );
+
+    -- Создаем индексы для быстрого поиска
+    CREATE INDEX IF NOT EXISTS idx_project_form_links_project_id ON public.project_form_links(project_id);
+    CREATE INDEX IF NOT EXISTS idx_project_form_links_form_id ON public.project_form_links(form_id);
+    `;
+
+    // Создаем хранимые процедуры для управления таблицами
+    const createProceduresSql = `
+    -- Процедура для создания таблицы form_submissions
+    CREATE OR REPLACE FUNCTION create_form_submissions_table()
+    RETURNS void AS $$
+    BEGIN
+        CREATE TABLE IF NOT EXISTS public.form_submissions (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            form_type TEXT NOT NULL CHECK (form_type IN ('contact', 'consultation', 'comment', 'callback')),
+            topic TEXT NOT NULL,
+            custom_topic TEXT,
+            source TEXT,
+            data JSONB NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+            processed BOOLEAN DEFAULT FALSE,
+            processed_at TIMESTAMP WITH TIME ZONE,
+            user_id UUID REFERENCES auth.users(id),
+            status TEXT DEFAULT 'new',
+            is_pinned BOOLEAN DEFAULT FALSE,
+            pinned_at TIMESTAMP WITH TIME ZONE,
+            external_id TEXT,
+            external_data JSONB
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_form_submissions_form_type ON public.form_submissions(form_type);
+        CREATE INDEX IF NOT EXISTS idx_form_submissions_created_at ON public.form_submissions(created_at);
+        CREATE INDEX IF NOT EXISTS idx_form_submissions_status ON public.form_submissions(status);
+        CREATE INDEX IF NOT EXISTS idx_form_submissions_is_pinned ON public.form_submissions(is_pinned);
+    END;
+    $$ LANGUAGE plpgsql;
+
+    -- Процедура для создания таблицы bitrix_leads
+    CREATE OR REPLACE FUNCTION create_bitrix_leads_table()
+    RETURNS void AS $$
+    BEGIN
+        CREATE TABLE IF NOT EXISTS public.bitrix_leads (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            lead_id TEXT NOT NULL UNIQUE,
+            title TEXT,
+            name TEXT,
+            last_name TEXT,
+            email TEXT,
+            phone TEXT,
+            status_id TEXT,
+            source_id TEXT,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+            raw_data JSONB,
+            last_sync TIMESTAMP WITH TIME ZONE DEFAULT now()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_bitrix_leads_lead_id ON public.bitrix_leads(lead_id);
+        CREATE INDEX IF NOT EXISTS idx_bitrix_leads_email ON public.bitrix_leads(email);
+        CREATE INDEX IF NOT EXISTS idx_bitrix_leads_phone ON public.bitrix_leads(phone);
+    END;
+    $$ LANGUAGE plpgsql;
+
+    -- Процедура для создания таблицы project_form_links
+    CREATE OR REPLACE FUNCTION create_project_form_links_table()
+    RETURNS void AS $$
+    BEGIN
+        CREATE TABLE IF NOT EXISTS public.project_form_links (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            project_id TEXT NOT NULL,
+            form_id UUID NOT NULL REFERENCES public.form_submissions(id),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+            UNIQUE(project_id, form_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_project_form_links_project_id ON public.project_form_links(project_id);
+        CREATE INDEX IF NOT EXISTS idx_project_form_links_form_id ON public.project_form_links(form_id);
+    END;
+    $$ LANGUAGE plpgsql;
+    `;
+
+    // Создаем RLS политики
+    const createPoliciesSql = `
+    -- Включаем RLS для всех таблиц
+    ALTER TABLE IF EXISTS public.form_submissions ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE IF EXISTS public.bitrix_leads ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE IF EXISTS public.project_form_links ENABLE ROW LEVEL SECURITY;
+
+    -- Разрешаем анонимным пользователям только вставку в form_submissions
+    DROP POLICY IF EXISTS "Allow inserts to form_submissions" ON public.form_submissions;
+    CREATE POLICY "Allow inserts to form_submissions" 
+    ON public.form_submissions 
+    FOR INSERT 
+    TO anon
+    WITH CHECK (true);
+
+    -- Разрешаем авторизованным пользователям чтение form_submissions
+    DROP POLICY IF EXISTS "Allow select from form_submissions" ON public.form_submissions;
+    CREATE POLICY "Allow select from form_submissions" 
+    ON public.form_submissions 
+    FOR SELECT 
+    TO authenticated
+    USING (true);
+
+    -- Разрешаем админам и менеджерам все операции с form_submissions
+    DROP POLICY IF EXISTS "Allow admin/manager all on form_submissions" ON public.form_submissions;
+    CREATE POLICY "Allow admin/manager all on form_submissions" 
+    ON public.form_submissions 
+    FOR ALL 
+    TO authenticated
+    USING (
+      auth.uid() IN (
+        SELECT id FROM user_profiles WHERE role IN ('admin', 'manager')
+      )
+    );
+
+    -- Разрешаем авторизованным пользователям чтение bitrix_leads
+    DROP POLICY IF EXISTS "Allow select from bitrix_leads" ON public.bitrix_leads;
+    CREATE POLICY "Allow select from bitrix_leads" 
+    ON public.bitrix_leads 
+    FOR SELECT 
+    TO authenticated
+    USING (true);
+
+    -- Разрешаем админам и менеджерам все операции с bitrix_leads
+    DROP POLICY IF EXISTS "Allow admin/manager all on bitrix_leads" ON public.bitrix_leads;
+    CREATE POLICY "Allow admin/manager all on bitrix_leads" 
+    ON public.bitrix_leads 
+    FOR ALL 
+    TO authenticated
+    USING (
+      auth.uid() IN (
+        SELECT id FROM user_profiles WHERE role IN ('admin', 'manager')
+      )
+    );
+    `;
+
+    // Выполняем SQL запросы
+    await supabaseAdmin.rpc('create_form_submissions_table');
+    await supabaseAdmin.rpc('create_bitrix_leads_table');
+    await supabaseAdmin.rpc('create_project_form_links_table');
+    
+    // Выполняем SQL для создания политик безопасности через функцию выполнения SQL
+    const { error: policiesError } = await supabaseAdmin.rpc('execute_sql', { 
+      sql: createPoliciesSql 
+    });
+    
+    if (policiesError) {
+      console.error('Ошибка при создании политик:', policiesError);
+      // Продолжаем выполнение, даже если не удалось создать политики
+    }
+    
+    res.json({
+      success: true,
+      message: 'Таблицы форм и CRM успешно настроены'
+    });
+  } catch (error) {
+    console.error('Ошибка при настройке таблиц:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Ошибка при настройке таблиц'
+    });
+  }
+});
+
+// === Маршруты Telegram API ===
+app.post('/api/telegram/generate-token', telegramApi.generateTelegramToken);
+app.get('/api/telegram/accounts', telegramApi.getTelegramAccounts);
+app.post('/api/telegram/unlink', telegramApi.unlinkTelegram);
+app.post('/api/telegram/bot-link', telegramApi.linkTelegramFromBot);
+app.get('/api/telegram/check-account', telegramApi.checkTelegramAccount);
+
+// === Маршруты уведомлений ===
+// Отправка уведомления о смене статуса проекта
+app.post('/api/notifications/project-status', async (req, res) => {
+  const { userId, projectId, projectTitle, status } = req.body;
+  
+  if (!userId || !projectId || !projectTitle || !status) {
+    return res.status(400).json({ success: false, error: 'Отсутствуют обязательные параметры' });
+  }
+  
+  console.log(`Отправка уведомления о смене статуса проекта для ${userId}: "${projectTitle}" (${status})`);
+  const result = await notificationService.notifyProjectStatusChange(userId, projectId, projectTitle, status);
+  res.json({ success: result });
+});
+
+// Отправка уведомления о смене этапа продажи клиента
+app.post('/api/notifications/client-stage', async (req, res) => {
+  const { userId, stage } = req.body;
+  
+  if (!userId || !stage) {
+    return res.status(400).json({ success: false, error: 'Отсутствуют обязательные параметры' });
+  }
+  
+  console.log(`Отправка уведомления о смене этапа продажи для ${userId}: "${stage}"`);
+  const result = await notificationService.notifyClientSaleStageChange(userId, stage);
+  res.json({ success: result });
+});
+
+// Отправка уведомления о смене этапа строительства
+app.post('/api/notifications/construction-stage', async (req, res) => {
+  const { userId, stage } = req.body;
+  
+  if (!userId || !stage) {
+    return res.status(400).json({ success: false, error: 'Отсутствуют обязательные параметры' });
+  }
+  
+  console.log(`Отправка уведомления о смене этапа строительства для ${userId}: "${stage}"`);
+  const result = await notificationService.notifyConstructionStageChange(userId, stage);
+  res.json({ success: result });
+});
+
+// Отправка уведомления о новой задаче
+app.post('/api/notifications/task', async (req, res) => {
+  const { userId, task } = req.body;
+  
+  if (!userId || !task || !task.task || !task.date) {
+    return res.status(400).json({ success: false, error: 'Отсутствуют обязательные параметры' });
+  }
+  
+  console.log(`Отправка уведомления о новой задаче для ${userId}: "${task.task}"`);
+  const result = await notificationService.notifyNewTask(userId, task);
+  res.json({ success: result });
+});
+
+// Отправка уведомления о загрузке документа
+app.post('/api/notifications/document', async (req, res) => {
+  const { userId, fileName, fileType } = req.body;
+  
+  if (!userId || !fileName || !fileType) {
+    return res.status(400).json({ success: false, error: 'Отсутствуют обязательные параметры' });
+  }
+  
+  console.log(`Отправка уведомления о загрузке документа для ${userId}: "${fileName}" (${fileType})`);
+  const result = await notificationService.notifyDocumentUploaded(userId, fileName, fileType);
+  res.json({ success: result });
+});
+
+// Отправка произвольного уведомления
+app.post('/api/notifications/custom', async (req, res) => {
+  const { userId, title, body } = req.body;
+  
+  if (!userId || !title || !body) {
+    return res.status(400).json({ success: false, error: 'Отсутствуют обязательные параметры' });
+  }
+  
+  console.log(`Отправка произвольного уведомления для ${userId}: "${title}"`);
+  const result = await notificationService.sendCustomNotification(userId, title, body);
+  res.json({ success: result });
+});
+
+// Эндпоинт для прямой отправки Telegram-сообщений (для совместимости)
+app.post('/api/telegram/notify', async (req, res) => {
+  const { message, userId } = req.body;
+  
+  if (!message) {
+    return res.status(400).json({ success: false, error: 'Сообщение отсутствует' });
+  }
+  
+  console.log(`Отправка прямого Telegram-сообщения для ${userId || 'неизвестного пользователя'}: "${message}"`);
+  const result = await telegramApi.sendTelegramNotification(userId, message);
+  res.json(result);
+});
+
+// Эндпоинт для удаления пользователя (доступен только для администраторов)
+app.post('/api/admin/users/delete', async (req, res) => {
+  const { userId } = req.body;
+  
+  if (!userId) {
+    return res.status(400).json({ success: false, error: 'ID пользователя не указан' });
+  }
+  
+  try {
+    // Проверяем, что пользователь не админ
+    const { data: profileData, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+      
+    if (profileError) {
+      console.error("Error checking user role:", profileError.message);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Не удалось проверить роль пользователя'
+      });
+    }
+    
+    // Не даем удалить админа
+    if (profileData.role === 'admin') {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Администраторов нельзя удалить'
+      });
+    }
+    
+    // Удаляем пользователя через админский API
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    
+    if (authError) {
+      console.error("Error deleting auth user:", authError.message);
+      return res.status(500).json({ 
+        success: false, 
+        error: authError.message 
+      });
+    }
+    
+    console.log(`Пользователь ${userId} успешно удален`);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Unexpected error deleting user:", error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Непредвиденная ошибка при удалении пользователя'
+    });
+  }
+});
+
+// Middleware для JWT-проверки - применяется только к маршрутам, не определенным выше
+app.use((req, res, next) => {
+  // Для всех остальных запросов требуется аутентификация
+  console.log('AUTH HEADER:', req.headers.authorization);
+  return res.status(401).json({ 
+    error: 'Требуется аутентификация для доступа к API'
+  });
+});
+
+// Запускаем сервер на указанном порту
+app.listen(PORT, () => {
+  console.log(`Backend server running on http://localhost:${PORT}`);
+  console.log(`Активные маршруты API:`);
+  console.log('- /api/telegram/notify - отправка прямого Telegram-сообщения');
+  console.log('- /api/notifications/project-status - уведомление о смене статуса проекта');
+  console.log('- /api/notifications/client-stage - уведомление о смене этапа продажи');
+  console.log('- /api/notifications/construction-stage - уведомление о смене этапа строительства');
+  console.log('- /api/notifications/task - уведомление о новой задаче');
+  console.log('- /api/notifications/document - уведомление о загрузке документа');
+  console.log('- /api/notifications/custom - произвольное уведомление');
+  console.log('- /api/telegram/generate-token - генерация токена для привязки Telegram');
+  console.log('- /api/telegram/accounts - получение привязанных Telegram-аккаунтов');
+  console.log('- /api/telegram/unlink - отвязка Telegram-аккаунта');
+  console.log('- /api/telegram/bot-link - привязка Telegram-аккаунта через бота');
+  console.log('- /api/telegram/check-account - проверка привязки Telegram-аккаунта');
+  console.log('- /api/admin/users/delete - удаление пользователя (только для админов)');
+  console.log('- /api/forms/submit - отправка данных формы');
+  console.log('- /api/admin/sync-bitrix - синхронизация лидов из Bitrix24 (для админов/менеджеров)');
+  console.log('- /api/admin/sync-status - получение статуса синхронизации (для админов/менеджеров)');
+  console.log('- /api/admin/convert-leads-to-forms - конвертация лидов из Bitrix24 в заявки с форм (для админов/менеджеров)');
+  console.log('- /api/forms/:id/status - обновление статуса заявки (для админов/менеджеров)');
+  console.log('- /api/forms/:id/pin - закрепление/открепление заявки (для админов/менеджеров)');
+  console.log('- /api/admin/setup-forms-tables - настройка таблиц форм (для админов)');
+  
+  // Запускаем автоматическую синхронизацию по расписанию
+  console.log(`⏰ Запланирована автоматическая синхронизация с Bitrix24 по расписанию: ${SYNC_SCHEDULE}`);
+  cron.schedule(SYNC_SCHEDULE, async () => {
+    console.log('🔄 Запуск запланированной синхронизации с Bitrix24');
+    try {
+      await syncBitrixDataWithRetry();
+    } catch (error) {
+      console.error('❌ Ошибка при выполнении запланированной синхронизации:', error);
+    }
+  });
+  
+  // Запускаем первичную синхронизацию через 10 секунд после старта сервера
+  console.log('⏱️ Запланирована первичная синхронизация через 10 секунд после запуска');
+  setTimeout(async () => {
+    try {
+      console.log('🔄 Запуск первичной синхронизации с Bitrix24');
+      await syncBitrixDataWithRetry();
+    } catch (error) {
+      console.error('❌ Ошибка при выполнении первичной синхронизации:', error);
+    }
+  }, 10000);
+}); 

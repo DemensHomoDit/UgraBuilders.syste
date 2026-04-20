@@ -1,0 +1,1 @@
+require('./check-tables.cjs');
