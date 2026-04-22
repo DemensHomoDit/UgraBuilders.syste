@@ -98,18 +98,19 @@ export const tasksService = {
     try {
       const { data, error } = await db
         .from('tasks')
-        .select('*')
+        .select('*, assigned_user:users!assigned_to(id, username, avatar), created_user:users!created_by(id, username)')
         .order('created_at', { ascending: false })
         .limit(limit);
       
       if (error) throw error;
-      
-      // Явно приводим данные к типу Task[], чтобы убедиться в правильной типизации
       return (data as Task[]) || [];
     } catch (error: any) {
       console.error('Ошибка при получении задач:', error);
-      toast.error('Не удалось загрузить задачи');
-      return [];
+      // Fallback без JOIN если не поддерживается
+      try {
+        const { data } = await db.from('tasks').select('*').order('created_at', { ascending: false }).limit(limit);
+        return (data as Task[]) || [];
+      } catch { return []; }
     }
   },
   
@@ -120,16 +121,17 @@ export const tasksService = {
     try {
       const { data, error } = await db
         .from('tasks')
-        .select('*')
+        .select('*, assigned_user:users!assigned_to(id, username, avatar), created_user:users!created_by(id, username)')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      
       return (data as Task[]) || [];
     } catch (error: any) {
       console.error('Ошибка при получении задач:', error);
-      toast.error('Не удалось загрузить задачи');
-      return [];
+      try {
+        const { data } = await db.from('tasks').select('*').order('created_at', { ascending: false });
+        return (data as Task[]) || [];
+      } catch { return []; }
     }
   },
   
@@ -140,17 +142,18 @@ export const tasksService = {
     try {
       const { data, error } = await db
         .from('tasks')
-        .select('*')
+        .select('*, assigned_user:users!assigned_to(id, username, avatar), created_user:users!created_by(id, username)')
         .eq('assigned_to', userId)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      
       return (data as Task[]) || [];
     } catch (error: any) {
       console.error('Ошибка при получении задач пользователя:', error);
-      toast.error('Не удалось загрузить задачи');
-      return [];
+      try {
+        const { data } = await db.from('tasks').select('*').eq('assigned_to', userId).order('created_at', { ascending: false });
+        return (data as Task[]) || [];
+      } catch { return []; }
     }
   },
   

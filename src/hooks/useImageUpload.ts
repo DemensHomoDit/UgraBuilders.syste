@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from "react";
-import { supabaseStorage } from "@/utils/supabaseStorage";
+import { fileStorage } from "@/utils/fileStorage";
 
 interface UseImageUploadProps {
   bucketName: string;
@@ -65,7 +65,7 @@ export const useImageUpload = ({
       const progressInterval = mockProgress();
       
       // Загружаем файл в хранилище
-      const imageUrl = await supabaseStorage.uploadFile(file, bucketName, folderPath);
+      const imageUrl = await fileStorage.uploadFile(file, bucketName, folderPath);
       
       // Остановка имитации прогресса
       clearInterval(progressInterval);

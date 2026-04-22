@@ -38,6 +38,8 @@ export const UserTypeWrapper: React.FC<UserTypeWrapperProps> = ({
     username: user.username || "",
     email: user.email,
     role: normalizedRole,
+    phone: user.phone || null,
+    avatar: user.avatar || null,
     clientStage: user.clientStage || "",
     folders: user.folders
       ? {

@@ -48,7 +48,12 @@ const LoginForm = ({ onSuccessfulLogin }: LoginFormProps) => {
             // Корректно обрабатываем данные профиля
             const emptyFolders = { photos: [], documents: [], contracts: [] };
 
-            // Используем обновленную функцию safeJsonParse
+            const { data: userData } = await db
+              .from("users")
+              .select("phone, avatar")
+              .eq("id", data.session.user.id)
+              .maybeSingle();
+
             const user: User = {
               id: data.session.user.id,
               email: data.session.user.email || "",
@@ -57,6 +62,8 @@ const LoginForm = ({ onSuccessfulLogin }: LoginFormProps) => {
                 data.session.user.email?.split("@")[0] ||
                 "user",
               role: profileData.role || "client",
+              phone: userData?.phone || null,
+              avatar: userData?.avatar || null,
               clientStage: profileData.client_stage,
               folders: safeJsonParse(profileData.folders, emptyFolders),
               projectStats: safeJsonParse(

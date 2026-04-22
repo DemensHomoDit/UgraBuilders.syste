@@ -28,7 +28,6 @@ const reviewImageService = {
         .order('display_order', { ascending: true });
       
       if (error) {
-        console.error("Error fetching review images:", error);
         throw error;
       }
       
@@ -75,7 +74,6 @@ const reviewImageService = {
         .single();
       
       if (error) {
-        console.error('Error adding review image:', error);
         throw error;
       }
       
@@ -109,7 +107,6 @@ const reviewImageService = {
         .single();
       
       if (error) {
-        console.error('Error updating review image:', error);
         throw error;
       }
       
@@ -135,7 +132,6 @@ const reviewImageService = {
         .eq('id', imageId);
       
       if (error) {
-        console.error('Error deleting review image:', error);
         throw error;
       }
       
@@ -158,7 +154,6 @@ const reviewImageService = {
           .eq('id', image.id);
         
         if (error) {
-          console.error('Error updating image order:', error);
           throw error;
         }
       }

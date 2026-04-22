@@ -13,7 +13,7 @@ const blogQueryService = {
     try {
       const { data, error } = await db
         .from('blog_posts')
-        .select('*')
+        .select('*, categories(name)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -31,7 +31,7 @@ const blogQueryService = {
     try {
       const { data, error } = await db
         .from('blog_posts')
-        .select('*')
+        .select('*, categories(name)')
         .eq('id', id)
         .maybeSingle();
 

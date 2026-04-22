@@ -358,6 +358,8 @@ CREATE TABLE IF NOT EXISTS project_orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+  form_type VARCHAR(50),
+  topic VARCHAR(255),
   status VARCHAR(50) DEFAULT 'new',
   data JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -380,6 +382,51 @@ CREATE TABLE IF NOT EXISTS review_images (
   image_url TEXT NOT NULL,
   display_order INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Our Objects (Наши объекты)
+CREATE TABLE IF NOT EXISTS our_objects (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title             VARCHAR(255) NOT NULL,
+  subtitle          VARCHAR(255),
+  excerpt           TEXT,
+  description       TEXT,
+  city              VARCHAR(100),
+  construction_year INTEGER,
+  area              NUMERIC,
+  material          VARCHAR(255),
+  stories           INTEGER,
+  cover_image       TEXT,
+  slug              VARCHAR(255) UNIQUE,
+  display_order     INTEGER DEFAULT 0,
+  is_published      BOOLEAN DEFAULT false,
+  created_by        UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Our Object Images
+CREATE TABLE IF NOT EXISTS our_object_images (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  object_id     UUID NOT NULL REFERENCES our_objects(id) ON DELETE CASCADE,
+  image_url     TEXT NOT NULL,
+  caption       TEXT,
+  display_order INTEGER DEFAULT 0,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Our Object Reviews
+CREATE TABLE IF NOT EXISTS our_object_reviews (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  object_id    UUID NOT NULL REFERENCES our_objects(id) ON DELETE CASCADE,
+  author_name  VARCHAR(255) NOT NULL,
+  author_title VARCHAR(255),
+  author_image TEXT,
+  rating       INTEGER CHECK (rating >= 1 AND rating <= 5),
+  title        VARCHAR(255),
+  content      TEXT,
+  is_published BOOLEAN DEFAULT false,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ============================================
@@ -408,6 +455,12 @@ CREATE INDEX IF NOT EXISTS idx_guest_links_client ON guest_access_links(client_i
 CREATE INDEX IF NOT EXISTS idx_guest_links_token ON guest_access_links(token);
 CREATE INDEX IF NOT EXISTS idx_client_docs_client ON client_documents(client_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_client_docs_type ON client_documents(client_id, type);
+
+-- Our Objects indexes
+CREATE INDEX IF NOT EXISTS idx_our_objects_published ON our_objects(is_published, display_order);
+CREATE INDEX IF NOT EXISTS idx_our_objects_slug ON our_objects(slug);
+CREATE INDEX IF NOT EXISTS idx_our_object_images_object ON our_object_images(object_id, display_order);
+CREATE INDEX IF NOT EXISTS idx_our_object_reviews_object ON our_object_reviews(object_id);
 
 -- ============================================
 -- TRIGGERS
@@ -445,3 +498,55 @@ ALTER TABLE form_submissions ADD COLUMN IF NOT EXISTS source VARCHAR(100);
 ALTER TABLE form_submissions ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT false;
 ALTER TABLE form_submissions ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMPTZ;
 ALTER TABLE form_submissions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Our Objects fallback migrations
+CREATE TABLE IF NOT EXISTS our_objects (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title             VARCHAR(255) NOT NULL,
+  subtitle          VARCHAR(255),
+  excerpt           TEXT,
+  description       TEXT,
+  city              VARCHAR(100),
+  construction_year INTEGER,
+  area              NUMERIC,
+  material          VARCHAR(255),
+  stories           INTEGER,
+  cover_image       TEXT,
+  slug              VARCHAR(255) UNIQUE,
+  display_order     INTEGER DEFAULT 0,
+  is_published      BOOLEAN DEFAULT false,
+  created_by        UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS our_object_images (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  object_id     UUID NOT NULL REFERENCES our_objects(id) ON DELETE CASCADE,
+  image_url     TEXT NOT NULL,
+  caption       TEXT,
+  display_order INTEGER DEFAULT 0,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS our_object_reviews (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  object_id    UUID NOT NULL REFERENCES our_objects(id) ON DELETE CASCADE,
+  author_name  VARCHAR(255) NOT NULL,
+  author_title VARCHAR(255),
+  author_image TEXT,
+  rating       INTEGER CHECK (rating >= 1 AND rating <= 5),
+  title        VARCHAR(255),
+  content      TEXT,
+  is_published BOOLEAN DEFAULT false,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_our_objects_published ON our_objects(is_published, display_order);
+CREATE INDEX IF NOT EXISTS idx_our_objects_slug ON our_objects(slug);
+CREATE INDEX IF NOT EXISTS idx_our_object_images_object ON our_object_images(object_id, display_order);
+CREATE INDEX IF NOT EXISTS idx_our_object_reviews_object ON our_object_reviews(object_id);
+
+-- Project Orders fallback migrations
+ALTER TABLE project_orders ADD COLUMN IF NOT EXISTS form_type VARCHAR(50);
+ALTER TABLE project_orders ADD COLUMN IF NOT EXISTS topic VARCHAR(255);

@@ -2,6 +2,7 @@ import {
   HashRouter as Router,
   Routes,
   Route,
+  Navigate,
   useLocation,
 } from "react-router-dom";
 import { Toaster } from "sonner";
@@ -29,8 +30,8 @@ import ProjectsCommercial from "./pages/ProjectsCommercial";
 import Account from "./pages/Account";
 import Process from "./pages/Process";
 import ReviewWrite from "./pages/ReviewWrite";
-// Выносим initAdminFunctions в отдельный файл, чтобы использовать только в компонентах, где есть доступ к данным пользователя
-// import { initAdminFunctions } from './scripts/setup-admin-functions';
+import OurObjectsPage from "./pages/OurObjectsPage";
+import OurObjectDetailPage from "./pages/OurObjectDetailPage";
 import { useEffect } from "react";
 
 function App() {
@@ -58,7 +59,9 @@ function AppContent() {
         <Route path="/" element={<Home />} />
         <Route path="/projects" element={<Projects />} />
         <Route path="/projects/:id" element={<ProjectDetails />} />
-        <Route path="/projects/gallery" element={<ProjectsGallery />} />
+        <Route path="/projects/gallery" element={<Navigate to="/objects" replace />} />
+        <Route path="/objects" element={<OurObjectsPage />} />
+        <Route path="/objects/:id" element={<OurObjectDetailPage />} />
         <Route path="/projects/standard" element={<ProjectsStandard />} />
         <Route path="/projects/custom" element={<ProjectsCustom />} />
         <Route path="/projects/commercial" element={<ProjectsCommercial />} />

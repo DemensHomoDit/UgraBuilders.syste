@@ -15,7 +15,7 @@ interface FileUploaderProps {
 }
 
 /**
- * Компонент для загрузки файлов в Supabase Storage
+ * Компонент для загрузки файлов в файловое хранилище
  */
 const FileUploader: React.FC<FileUploaderProps> = ({
   onFileUploaded,

@@ -22,7 +22,7 @@ const ProjectsGallery = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   
-  // Fetch gallery items from Supabase
+  // Fetch gallery items
   useEffect(() => {
     const fetchGalleryItems = async () => {
       try {

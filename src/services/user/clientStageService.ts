@@ -37,7 +37,8 @@ class ClientStageService {
         );
       }
 
-      return transformProfileToUser(data);
+      const { data: userData } = await db.from('users').select('phone, avatar').eq('id', clientId).maybeSingle();
+      return { ...transformProfileToUser(data), phone: userData?.phone || null, avatar: userData?.avatar || null };
     } catch (error) {
       console.error("Error in updateClientSaleStage:", error);
       return null;

@@ -120,7 +120,7 @@ class DbScriptService {
    */
   private async executeRawSQL(sql: string): Promise<void> {
     try {
-      // Прямой запрос к PostgreSQL через Supabase
+      // Прямой запрос к PostgreSQL через RPC
       const { error } = await db.rpc('exec_sql', { sql_query: sql });
       
       if (error) {

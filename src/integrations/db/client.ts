@@ -1,7 +1,7 @@
 export {
-  supabase,
-  supabase as db,
   dbClient,
+  dbClient as db,
+  supabase,
   forceConnectionCheck,
   getConnectionStatus,
 } from "@/integrations/mongodb/client";

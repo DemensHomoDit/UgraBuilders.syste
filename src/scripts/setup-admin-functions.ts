@@ -114,7 +114,7 @@ export async function checkAdminFunctions(): Promise<boolean> {
 }
 
 /**
- * Инициализирует административные функции в Supabase
+ * Инициализирует административные функции в базе данных
  */
 export async function initAdminFunctions(): Promise<void> {
   const exists = await checkAdminFunctions();

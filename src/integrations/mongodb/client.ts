@@ -1,6 +1,6 @@
-// ─── Express / PostgreSQL client shim ─────────────────────────────────────────
-// This file preserves the old Supabase-like client API while routing all calls
-// to our own Express backend backed by PostgreSQL.
+// ─── Express / PostgreSQL client ──────────────────────────────────────────────
+// Provides a query-builder API that routes all calls to the Express backend
+// backed by PostgreSQL.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
@@ -49,7 +49,7 @@ function authHeaders(): Record<string, string> {
 function dispatchAuthEvent(event: string, session: any): void {
   try {
     window.dispatchEvent(
-      new CustomEvent("mongo:authStateChange", { detail: { event, session } }),
+      new CustomEvent("db:authStateChange", { detail: { event, session } }),
     );
   } catch {
     /* ignore SSR */
@@ -158,6 +158,11 @@ class QueryBuilder {
     return this;
   }
 
+  or(filter: string): this {
+    this._filters.push({ op: "or", field: "", value: filter });
+    return this;
+  }
+
   order(field: string, opts?: { ascending?: boolean }): this {
     this._orderBy = { field, ascending: opts?.ascending !== false };
     return this;
@@ -213,7 +218,6 @@ class QueryBuilder {
     return this;
   }
 
-  // Makes `await builder` and `await builder.select(...)` work
   then(resolve: (v: any) => any, reject?: (e: any) => any): Promise<any> {
     return this._execute().then(resolve, reject);
   }
@@ -483,12 +487,10 @@ const auth = {
   },
 
   onAuthStateChange(callback: (event: string, session: any) => void) {
-    // Fire immediately with current session from localStorage
     try {
       const token = getToken();
       const user = getStoredUser();
       const session = token ? { access_token: token, user } : null;
-      // Use setTimeout so callers can capture the returned subscription first
       setTimeout(() => callback("INITIAL_SESSION", session), 0);
     } catch {
       /* SSR */
@@ -500,7 +502,7 @@ const auth = {
     };
 
     try {
-      window.addEventListener("mongo:authStateChange", handler);
+      window.addEventListener("db:authStateChange", handler);
     } catch {
       /* SSR */
     }
@@ -510,7 +512,7 @@ const auth = {
         subscription: {
           unsubscribe: () => {
             try {
-              window.removeEventListener("mongo:authStateChange", handler);
+              window.removeEventListener("db:authStateChange", handler);
             } catch {
               /* SSR */
             }
@@ -618,7 +620,7 @@ const rpc = async (
   }
 };
 
-// ─── Channel (compat shim, no server-side realtime yet) ───────────────────────
+// ─── Channel (no server-side realtime) ───────────────────────────────────────
 
 const channel = (_name: string) => ({
   on: (..._args: any[]) => ({
@@ -629,7 +631,7 @@ const channel = (_name: string) => ({
 
 // ─── Main client object ───────────────────────────────────────────────────────
 
-export const supabase = {
+export const dbClient = {
   auth,
   storage,
   rpc,
@@ -640,9 +642,9 @@ export const supabase = {
   },
 };
 
-export const dbClient = supabase;
-
-export { supabase as db };
+// Backward-compatible aliases
+export const supabase = dbClient;
+export { dbClient as db };
 
 // ─── Connection check helpers ─────────────────────────────────────────────────
 
@@ -659,4 +661,4 @@ export const forceConnectionCheck = async (_force = true): Promise<boolean> => {
 
 export const getConnectionStatus = (): boolean => true;
 
-export default supabase;
+export default dbClient;

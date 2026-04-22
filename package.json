@@ -10,7 +10,11 @@
     "start": "node server.cjs",
     "start:dev": "NODE_ENV=development node server.cjs",
     "lint": "eslint .",
-    "db:migrate": "psql \"postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}\" -f db/schema.sql"
+    "db:migrate": "psql \"postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}\" -f db/schema.sql",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -59,7 +63,7 @@
     "dotenv": "^16.6.1",
     "embla-carousel-react": "^8.3.0",
     "exifreader": "^3.1.0",
-    "express": "^5.1.0",
+    "express": "^4.21.2",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.5.0",
     "input-otp": "^1.2.4",
@@ -91,21 +95,27 @@
   "devDependencies": {
     "@eslint/js": "^9.9.0",
     "@tailwindcss/typography": "^0.5.15",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^22.5.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react-swc": "^3.5.0",
+    "@vitest/ui": "^4.1.5",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.9.0",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.9",
+    "fast-check": "^4.7.0",
     "globals": "^15.9.0",
-    "lovable-tagger": "^1.1.7",
+    "jsdom": "^29.0.2",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.11",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
-    "vite": "^5.4.1"
+    "vite": "^5.4.1",
+    "vitest": "^4.1.5"
   }
 }

@@ -33,9 +33,11 @@ export interface User {
   username: string;
   email: string;
   role: UserRole;
-  phone?: string;
-  avatar?: string;
+  phone?: string | null;
+  avatar?: string | null;
   clientStage?: string;
+  schedule?: any[];
+  cameras?: any[];
   folders?: {
     photos: string[];
     documents: string[];

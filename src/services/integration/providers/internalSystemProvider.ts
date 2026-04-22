@@ -4,7 +4,7 @@ import { db } from '@/integrations/db/client';
 
 /**
  * Провайдер для интеграции с внутренней системой компании
- * Получает данные из Bitrix24 и сохраняет их в базу данных Supabase
+ * Получает данные из Bitrix24 и сохраняет их в базу данных
  */
 class InternalSystemProvider implements IntegrationProvider {
   private bitrix24Webhook: string;
@@ -19,7 +19,7 @@ class InternalSystemProvider implements IntegrationProvider {
 
   /**
    * Отправка данных формы во внутреннюю систему
-   * Фактически, сначала получает данные из Bitrix24, а затем сохраняет их в Supabase
+   * Сначала получает данные из Bitrix24, затем сохраняет их в базу данных
    */
   async sendData(data: FormData): Promise<IntegrationResult> {
     try {
@@ -52,7 +52,7 @@ class InternalSystemProvider implements IntegrationProvider {
           // Вызываем Bitrix24 API для получения последних лидов
           const bitrixData = await this.fetchLeadsFromBitrix24();
           
-          // Сохраняем полученные данные в таблицу bitrix_leads в Supabase
+          // Сохраняем полученные данные в таблицу bitrix_leads
           if (bitrixData && Array.isArray(bitrixData.result)) {
             const { error: bitrixError } = await db
               .from('bitrix_leads')
@@ -154,7 +154,7 @@ class InternalSystemProvider implements IntegrationProvider {
     }
 
     try {
-      // Проверяем статус подключения к Supabase
+      // Проверяем статус подключения к базе данных
       const { error } = await db.from('form_submissions').select('count', { count: 'exact', head: true });
       
       if (error) {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { User } from "@/services/types/authTypes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,11 +28,21 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     username: user.username || "",
-    phone: (user as any).phone || "",
+    phone: user.phone || "",
     email: user.email || "",
   });
-  const [avatarUrl, setAvatarUrl] = useState((user as any).avatar || "");
+  const [avatarUrl, setAvatarUrl] = useState(user.avatar || "");
   const { toast } = useToast();
+
+  // Update formData when user prop changes
+  useEffect(() => {
+    setFormData({
+      username: user.username || "",
+      phone: user.phone || "",
+      email: user.email || "",
+    });
+    setAvatarUrl(user.avatar || "");
+  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -73,14 +83,22 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
 
       // Update local state from saved data
       if (savedUser && savedUser[0]) {
-        setFormData({
+        const newUserData = {
           username: savedUser[0].username || formData.username,
           phone: savedUser[0].phone || formData.phone,
           email: savedUser[0].email || formData.email,
-        });
+        };
+        setFormData(newUserData);
         if (savedUser[0].avatar) {
           setAvatarUrl(savedUser[0].avatar);
         }
+        
+        // Update parent component's user object
+        Object.assign(user, {
+          username: newUserData.username,
+          phone: newUserData.phone,
+          avatar: savedUser[0].avatar || avatarUrl,
+        });
       }
 
       toast({ title: "Профиль обновлён" });
@@ -147,7 +165,7 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
                 )}
               </div>
               <Badge variant="outline" className="text-xs">
-                {(user as any).clientStage || "Клиент"}
+                {user.clientStage || "Клиент"}
               </Badge>
             </div>
 
@@ -237,7 +255,7 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
                         setIsEditing(false);
                         setFormData({
                           username: user.username || "",
-                          phone: (user as any).phone || "",
+                          phone: user.phone || "",
                           email: user.email || "",
                         });
                       }}

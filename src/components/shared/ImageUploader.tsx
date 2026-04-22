@@ -17,7 +17,7 @@ export interface ImageUploaderProps {
 }
 
 /**
- * Компонент для загрузки изображений в Supabase Storage
+ * Компонент для загрузки изображений в файловое хранилище
  */
 const ImageUploader: React.FC<ImageUploaderProps> = ({ 
   onImageUploaded,

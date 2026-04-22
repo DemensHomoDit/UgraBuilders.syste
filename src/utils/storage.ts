@@ -3,11 +3,11 @@ import { db } from "@/integrations/db/client";
 import { v4 as uuidv4 } from "uuid";
 
 /**
- * Утилита для работы с хранилищем Supabase
+ * Утилита для работы с файловым хранилищем
  */
 export const storageUtils = {
   /**
-   * Загрузка файла в хранилище Supabase
+   * Загрузка файла в хранилище
    * @param file Файл для загрузки
    * @param bucketName Имя бакета в хранилище
    * @param folderPath Опциональный путь к папке внутри бакета
@@ -45,7 +45,7 @@ export const storageUtils = {
   },
   
   /**
-   * Удаление файла из хранилища Supabase
+   * Удаление файла из хранилища
    * @param fileUrl URL файла для удаления
    * @param bucketName Имя бакета в хранилище
    */

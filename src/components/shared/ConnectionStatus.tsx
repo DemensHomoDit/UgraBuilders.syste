@@ -30,14 +30,14 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ className = "" }) =
     const handleReconnect = () => setIsConnected(true);
     const handleConnectionFailed = () => setIsConnected(false);
     
-    window.addEventListener('supabase:disconnected', handleDisconnect);
-    window.addEventListener('supabase:reconnected', handleReconnect);
-    window.addEventListener('supabase:connection-failed', handleConnectionFailed);
+    window.addEventListener('db:disconnected', handleDisconnect);
+    window.addEventListener('db:reconnected', handleReconnect);
+    window.addEventListener('db:connection-failed', handleConnectionFailed);
     
     return () => {
-      window.removeEventListener('supabase:disconnected', handleDisconnect);
-      window.removeEventListener('supabase:reconnected', handleReconnect);
-      window.removeEventListener('supabase:connection-failed', handleConnectionFailed);
+      window.removeEventListener('db:disconnected', handleDisconnect);
+      window.removeEventListener('db:reconnected', handleReconnect);
+      window.removeEventListener('db:connection-failed', handleConnectionFailed);
     };
   }, []);
   

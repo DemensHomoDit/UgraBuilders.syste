@@ -79,7 +79,6 @@ export const useAuth = () => {
           .maybeSingle();
 
         if (profileError) {
-          console.error("Profile fetch error:", profileError);
           throw profileError;
         }
 
@@ -95,20 +94,19 @@ export const useAuth = () => {
   const fetchUserFields = useCallback(
     async (userId: string): Promise<{ phone: string | null; avatar: string | null }> => {
       try {
-        const { data, error } = await db
+        const result = await db
           .from("users")
           .select("phone, avatar")
           .eq("id", userId)
           .maybeSingle();
 
-        if (error) {
-          console.error("User fields fetch error:", error);
+        if (result.error) {
           return { phone: null, avatar: null };
         }
 
         return {
-          phone: data?.phone || null,
-          avatar: data?.avatar || null,
+          phone: result.data?.phone || null,
+          avatar: result.data?.avatar || null,
         };
       } catch (error) {
         console.error("Error fetching user fields:", error);
@@ -135,7 +133,6 @@ export const useAuth = () => {
         } = await db.auth.getSession();
 
         if (sessionError) {
-          console.error("Session error during sync:", sessionError);
           setConnectionStatus("disconnected");
           throw sessionError;
         }
@@ -172,9 +169,6 @@ export const useAuth = () => {
 
               setUser(updatedUser);
             } else if (!profileData && forceUserUpdate) {
-              console.warn(
-                "No profile data found during sync, using session data only",
-              );
               setUser({
                 id: session.user.id,
                 email: session.user.email || "",
@@ -186,7 +180,6 @@ export const useAuth = () => {
               // Если у нас уже есть данные о пользователе и это не принудительное обновление,
               // сохраняем текущее состояние
             } else {
-              console.warn("No profile data found, using default values");
               setUser({
                 id: session.user.id,
                 email: session.user.email || "",

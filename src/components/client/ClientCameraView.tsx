@@ -34,7 +34,7 @@ interface ClientCameraViewProps {
 }
 
 function getCameras(user: User): CameraStream[] {
-  const raw = (user as any).cameras;
+  const raw = user.cameras;
   if (Array.isArray(raw) && raw.length > 0) return raw as CameraStream[];
   return [];
 }

@@ -1,9 +1,8 @@
-// Legacy import path kept for compatibility.
-// The exported client talks to our Express API backed by PostgreSQL.
+// Legacy import path — kept for compatibility.
 export {
-  supabase,
-  supabase as db,
   dbClient,
+  dbClient as db,
+  supabase,
   forceConnectionCheck,
   getConnectionStatus,
 } from "@/integrations/mongodb/client";

@@ -1,99 +1,100 @@
-
-import { Button } from "@/components/ui/button";
-import { ChevronRight, FolderCheck, Home, Building2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { ArrowUpRight } from "lucide-react";
 
-const houseCategories = [
+const cats = [
   {
-    title: "СЕРИЙНЫЕ ПРОЕКТЫ",
-    image: "https://i.pinimg.com/1200x/db/e1/ab/dbe1ab1308ac0991f17d04e2320b80c7.jpg",
-    icon: <FolderCheck className="h-4 w-4" />,
+    title: "Серийные проекты",
+    desc: "Более 80 готовых проектов домов от 80 до 400 м²",
+    img: "https://i.pinimg.com/1200x/db/e1/ab/dbe1ab1308ac0991f17d04e2320b80c7.jpg",
     url: "/projects/standard",
-    description: "Готовые архитектурные решения различных стилей для быстрого старта строительства"
+    tag: "от 3 500 000 ₽",
+    count: "80+ проектов",
   },
   {
-    title: "ИНДИВИДУАЛЬНЫЕ ПРОЕКТЫ",
-    image: "/1.png.jpg",
-    icon: <Home className="h-4 w-4" />,
+    title: "Индивидуальные проекты",
+    desc: "Уникальный дом под ваш участок, климат и образ жизни",
+    img: "/1.png.jpg",
     url: "/projects/custom",
-    description: "Уникальные проекты, созданные специально для вас и вашей семьи"
+    tag: "Индивидуально",
+    count: "Любой бюджет",
   },
   {
-    title: "КОММЕРЧЕСКИЕ ПРОЕКТЫ",
-    image: "https://i.pinimg.com/1200x/d5/81/0d/d5810de6f9760c14174c58ac48ed5fa1.jpg",
-    icon: <Building2 className="h-4 w-4" />,
+    title: "Коммерческие объекты",
+    desc: "Офисы, магазины, производственные здания любого масштаба",
+    img: "https://i.pinimg.com/1200x/d5/81/0d/d5810de6f9760c14174c58ac48ed5fa1.jpg",
     url: "/projects/commercial",
-    description: "Проектирование и строительство офисов, магазинов и других коммерческих объектов"
-  }
+    tag: "Бизнес",
+    count: "Любой масштаб",
+  },
 ];
 
-const ProjectCategories = () => {
+export default function ProjectCategories() {
   return (
-    <div className="relative w-full">
-      {/* Градиент теперь растягивается на всю ширину экрана */}
-      <div className="absolute -top-8 inset-x-0 h-24 bg-gradient-to-b from-primary/5 to-transparent -z-10" />
-      <div className="container mx-auto mt-4 md:mt-8 px-4">
-      
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="text-center mb-8 md:mb-12"
-      >
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary mb-4 text-center">
-          Дома по каркасной технологии термопанелей
-        </h2>
-        <div className="w-16 md:w-24 h-1 bg-primary/20 mx-auto mb-4 md:mb-6"></div>
-        <p className="text-sm md:text-base text-muted-foreground max-w-2xl mx-auto text-center px-4">
-          Выберите готовый проект или создайте индивидуальный дом мечты вместе с нами
-        </p>
-      </motion.div>
-      
-      <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-8 max-w-6xl mx-auto flex-wrap">
-        {houseCategories.map((category, index) => (
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: index * 0.2 }}
-            className="group w-full md:w-[450px] lg:w-[350px] overflow-hidden rounded-xl shadow-md hover:shadow-xl transition-all duration-500 bg-white mb-6 md:mb-0"
+    <section className="py-20 md:py-28">
+      <div className="max-w-[1320px] mx-auto px-5 md:px-8">
+        {/* Шапка */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-12 md:mb-16"
+        >
+          <div>
+            <p className="label-tag mb-4">Направления</p>
+            <h2 className="text-4xl md:text-5xl text-gray-900 tracking-tight">
+              Дома по каркасной<br className="hidden md:block" /> технологии
+            </h2>
+          </div>
+          <Link to="/projects"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:gap-3 transition-all"
           >
-            <div className="relative h-[200px] sm:h-[250px] md:h-[300px] w-full overflow-hidden">
-              <img 
-                src={category.image} 
-                alt={category.title} 
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/40 to-transparent opacity-70" />
-              <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-6 md:p-8 text-white">
-                <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3 tracking-wider">{category.title}</h3>
-                <p className="text-white/90 text-xs sm:text-sm mb-4 md:mb-6 max-w-[90%] md:max-w-[80%]">
-                  {category.description}
-                </p>
-              </div>
-            </div>
-            <div className="p-4 md:p-6 bg-white">
-              <Link to={category.url}>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="w-full text-primary hover:text-white hover:bg-primary/90 justify-between text-xs sm:text-sm py-3 md:py-4 h-12 md:h-14"
-                >
-                  <span className="flex items-center gap-2">
-                    {category.icon}
-                    <span className="font-medium">Смотреть проекты</span>
-                  </span>
-                  <ChevronRight className="h-4 w-4 md:h-5 md:w-5 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </div>
-    </div>
-  );
-};
+            Все проекты <ArrowUpRight size={16} />
+          </Link>
+        </motion.div>
 
-export default ProjectCategories;
+        {/* Карточки */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-6">
+          {cats.map((c, i) => (
+            <motion.div key={i}
+              initial={{ opacity: 0, y: 28 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.55, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <Link to={c.url} className="group block">
+                {/* Фото */}
+                <div className="relative overflow-hidden rounded-3xl aspect-[3/2] mb-5 bg-gray-100">
+                  <img src={c.img} alt={c.title}
+                    className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+                  {/* Тег */}
+                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md text-gray-800 text-xs font-semibold px-3.5 py-1.5 rounded-full shadow-sm">
+                    {c.tag}
+                  </div>
+                  {/* Кнопка */}
+                  <div className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0 shadow-sm">
+                    <ArrowUpRight size={16} className="text-gray-800" />
+                  </div>
+                </div>
+
+                {/* Текст */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-lg font-bold text-gray-900 tracking-tight group-hover:text-primary transition-colors">
+                      {c.title}
+                    </h3>
+                    <span className="text-xs text-gray-400 font-medium">{c.count}</span>
+                  </div>
+                  <p className="text-sm text-gray-500 leading-relaxed">{c.desc}</p>
+                </div>
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

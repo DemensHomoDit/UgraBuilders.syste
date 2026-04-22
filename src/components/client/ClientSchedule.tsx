@@ -88,7 +88,7 @@ function formatDateShort(dateStr?: string): string {
 
 /* Достаём schedule из projectStats или возвращаем пустой массив */
 function getSchedule(user: User): ScheduleItem[] {
-  const raw = (user as any).schedule;
+  const raw = user.schedule;
   if (Array.isArray(raw) && raw.length > 0) return raw as ScheduleItem[];
   return [];
 }

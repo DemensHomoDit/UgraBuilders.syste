@@ -24,7 +24,8 @@ class ClientScheduleService {
         return null;
       }
 
-      return transformProfileToUser(data);
+      const { data: userData } = await db.from('users').select('phone, avatar').eq('id', clientId).maybeSingle();
+      return { ...transformProfileToUser(data), phone: userData?.phone || null, avatar: userData?.avatar || null };
     } catch (error) {
       console.error("Error in updateClientSchedule:", error);
       return null;
@@ -50,7 +51,8 @@ class ClientScheduleService {
         return null;
       }
 
-      return transformProfileToUser(data);
+      const { data: userData } = await db.from('users').select('phone, avatar').eq('id', clientId).maybeSingle();
+      return { ...transformProfileToUser(data), phone: userData?.phone || null, avatar: userData?.avatar || null };
     } catch (error) {
       console.error("Error in updateClientWorkTasks:", error);
       return null;

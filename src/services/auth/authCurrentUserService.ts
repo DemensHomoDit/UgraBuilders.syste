@@ -12,16 +12,18 @@ class AuthCurrentUserService {
         return null;
       }
 
-      const { data: profileData, error: profileError } = await db
-        .from('user_profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .maybeSingle();
+      const [profileResult, userResult] = await Promise.all([
+        db.from('user_profiles').select('*').eq('id', data.user.id).maybeSingle(),
+        db.from('users').select('phone, avatar').eq('id', data.user.id).maybeSingle(),
+      ]);
 
-      if (profileError) {
-        console.error("Profile fetch error:", profileError.message);
+      if (profileResult.error) {
+        console.error("Profile fetch error:", profileResult.error.message);
         return null;
       }
+
+      const profileData = profileResult.data;
+      const userData = userResult.data;
 
       if (!profileData) {
         const { data: newProfile, error: createProfileError } = await db
@@ -43,9 +45,9 @@ class AuthCurrentUserService {
             role: 'client'
           };
         }
-        return transformProfileToUser(newProfile);
+        return { ...transformProfileToUser(newProfile), phone: userData?.phone || null, avatar: userData?.avatar || null };
       }
-      return transformProfileToUser(profileData);
+      return { ...transformProfileToUser(profileData), phone: userData?.phone || null, avatar: userData?.avatar || null };
     } catch (error) {
       console.error("Get current user error:", error);
       return null;

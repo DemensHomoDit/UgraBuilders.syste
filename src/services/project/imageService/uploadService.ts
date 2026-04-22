@@ -105,7 +105,7 @@ export const uploadService = {
   },
 
   /**
-   * Загрузка файла в хранилище Supabase с оптимизацией и обработкой таймаутов
+   * Загрузка файла в хранилище с оптимизацией и обработкой таймаутов
    */
   async uploadFile(file: File, bucketName: string, folderPath?: string): Promise<string | null> {
     try {

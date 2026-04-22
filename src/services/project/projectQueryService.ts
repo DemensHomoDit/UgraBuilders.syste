@@ -8,7 +8,7 @@ class ProjectQueryService {
     return withRetry(async () => {
       let query = db
         .from('projects')
-        .select('*');
+        .select('*, categories(id, name, type)');
       
       if (onlyPublished) {
         query = query.eq('is_published', true);
@@ -66,7 +66,7 @@ class ProjectQueryService {
     return withRetry(async () => {
       let query = db
         .from('projects')
-        .select('*')
+        .select('*, categories(id, name, type)')
         .eq('category_id', categoryId);
       
       if (onlyPublished) {
@@ -119,7 +119,7 @@ class ProjectQueryService {
     return withRetry(async () => {
       let query = db
         .from('projects')
-        .select('*')
+        .select('*, categories(id, name, type)')
         .eq('type', projectType);
       
       if (onlyPublished) {
@@ -172,7 +172,7 @@ class ProjectQueryService {
     return withRetry(async () => {
       const { data, error } = await db
         .from('projects')
-        .select('*')
+        .select('*, categories(id, name, type)')
         .eq('id', id)
         .maybeSingle();
       

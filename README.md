@@ -92,7 +92,7 @@ We don't support custom domains (yet). If you want to deploy your project under 
 ```
 
 Этот скрипт запускает:
-1. Создание необходимых таблиц в Supabase (если они отсутствуют)
+1. Создание необходимых таблиц в базе данных (если они отсутствуют)
 2. API-сервер на порту 3001
 3. Telegram-бота
 

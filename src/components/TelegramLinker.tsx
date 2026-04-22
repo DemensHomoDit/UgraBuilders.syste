@@ -99,7 +99,7 @@ export default function TelegramLinker() {
           setError("ID пользователя не найден в сессии");
         }
       } else {
-        setError("Нет активной сессии Supabase");
+        setError("Нет активной сессии");
       }
     });
   }, []);

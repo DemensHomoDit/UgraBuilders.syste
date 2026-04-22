@@ -87,7 +87,7 @@ const ClientProjectView: React.FC<ClientProjectViewProps> = ({ user }) => {
     try {
       setLoading(true);
 
-      const profile = (user as any).projectStats || (user as any).folders;
+      const profile = user.projectStats || user.folders;
       const userResponse = await db
         .from("user_profiles")
         .select("project_stats, schedule")

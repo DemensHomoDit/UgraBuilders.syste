@@ -84,7 +84,19 @@ class UserProfileService {
         return [];
       }
 
-      return profiles.map(profile => transformProfileToUser(profile));
+      // Fetch phone/avatar from users table
+      const ids = profiles.map((p: any) => p.id);
+      const { data: usersData } = await db
+        .from('users')
+        .select('id, phone, avatar')
+        .in('id', ids);
+
+      const usersMap = new Map((usersData || []).map((u: any) => [u.id, u]));
+
+      return profiles.map((profile: any) => {
+        const u = usersMap.get(profile.id);
+        return { ...transformProfileToUser(profile), phone: u?.phone || null, avatar: u?.avatar || null };
+      });
     } catch (error) {
       console.error("Error in getAllUsers:", error);
       return [];
@@ -93,22 +105,25 @@ class UserProfileService {
 
   public async getUserById(userId: string): Promise<User | null> {
     try {
-      const { data: profile, error } = await db
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      const [profileResult, userResult] = await Promise.all([
+        db.from('user_profiles').select('*').eq('id', userId).maybeSingle(),
+        db.from('users').select('phone, avatar').eq('id', userId).maybeSingle(),
+      ]);
 
-      if (error) {
-        console.error("Error fetching user:", error.message);
+      if (profileResult.error) {
+        console.error("Error fetching user:", profileResult.error.message);
         return null;
       }
 
-      if (!profile) {
+      if (!profileResult.data) {
         return null;
       }
 
-      return transformProfileToUser(profile);
+      return {
+        ...transformProfileToUser(profileResult.data),
+        phone: userResult.data?.phone || null,
+        avatar: userResult.data?.avatar || null,
+      };
     } catch (error) {
       console.error("Error in getUserById:", error);
       return null;

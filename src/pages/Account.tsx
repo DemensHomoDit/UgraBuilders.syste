@@ -28,6 +28,15 @@ import AdminProjectDetails from "@/pages/admin/ProjectDetails";
 import FormsPage from "@/pages/admin/FormsPage";
 import ClientDashboard from "@/components/client/ClientDashboard";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import AdminObjectsList from "@/components/admin/objects/AdminObjectsList";
+import AdminObjectForm from "@/components/admin/objects/AdminObjectForm";
+import { useParams } from "react-router-dom";
+
+// Вспомогательный компонент для передачи id из URL
+function AdminObjectFormWithId() {
+  const { id } = useParams<{ id: string }>();
+  return <AdminObjectForm objectId={id} />;
+}
 
 const Account = () => {
   const { user, loading, error, logout, syncUserData } = useAuth();
@@ -143,7 +152,7 @@ const Account = () => {
             <Route
               path="/projects"
               element={
-                <ProtectedRoute user={convertedUser} allowedRoles={["admin", "editor", "manager"]}>
+                <ProtectedRoute user={convertedUser} allowedRoles={["admin", "editor"]}>
                   <AdminProjects user={convertedUser} />
                 </ProtectedRoute>
               }
@@ -151,7 +160,7 @@ const Account = () => {
             <Route
               path="/projects/new"
               element={
-                <ProtectedRoute user={convertedUser} allowedRoles={["admin", "editor", "manager"]}>
+                <ProtectedRoute user={convertedUser} allowedRoles={["admin", "editor"]}>
                   <ProjectForm user={convertedUser} />
                 </ProtectedRoute>
               }
@@ -159,7 +168,7 @@ const Account = () => {
             <Route
               path="/projects/edit/:id"
               element={
-                <ProtectedRoute user={convertedUser} allowedRoles={["admin", "editor", "manager"]}>
+                <ProtectedRoute user={convertedUser} allowedRoles={["admin", "editor"]}>
                   <AdminProjectDetails />
                 </ProtectedRoute>
               }
@@ -191,7 +200,7 @@ const Account = () => {
             <Route
               path="/news"
               element={
-                <ProtectedRoute user={convertedUser} allowedRoles={["admin", "editor", "manager"]}>
+                <ProtectedRoute user={convertedUser} allowedRoles={["admin", "editor"]}>
                   <NewsManagement />
                 </ProtectedRoute>
               }
@@ -201,6 +210,30 @@ const Account = () => {
               element={
                 <ProtectedRoute user={convertedUser} allowedRoles={["admin"]}>
                   <AdminUsers user={convertedUser} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/objects"
+              element={
+                <ProtectedRoute user={convertedUser} allowedRoles={["admin", "editor"]}>
+                  <AdminObjectsList />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/objects/new"
+              element={
+                <ProtectedRoute user={convertedUser} allowedRoles={["admin", "editor"]}>
+                  <AdminObjectForm />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/objects/edit/:id"
+              element={
+                <ProtectedRoute user={convertedUser} allowedRoles={["admin", "editor"]}>
+                  <AdminObjectFormWithId />
                 </ProtectedRoute>
               }
             />

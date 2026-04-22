@@ -49,13 +49,11 @@ const reviewMutationService = {
         .single();
 
       if (error) {
-        console.error("Error creating review:", error);
         throw error;
       }
 
       return newReview;
     } catch (error) {
-      console.error("Error creating review:", error);
       throw error;
     }
   },
@@ -76,13 +74,11 @@ const reviewMutationService = {
         .single();
 
       if (error) {
-        console.error('Error updating review:', error);
         throw error;
       }
       
       return updatedReview;
     } catch (error) {
-      console.error('Error updating review:', error);
       throw error;
     }
   },
@@ -96,7 +92,6 @@ const reviewMutationService = {
       try {
         await reviewImageService.deleteAllReviewImages(id);
       } catch (imageError) {
-        console.error(`Error deleting images for review ${id}:`, imageError);
         // Продолжаем даже при ошибке удаления изображений
       }
       
@@ -107,12 +102,10 @@ const reviewMutationService = {
         .eq('id', id);
       
       if (error) {
-        console.error(`Error deleting review ${id}:`, error);
         throw error;
       }
       return true;
     } catch (error) {
-      console.error('Error deleting review:', error);
       throw error;
     }
   },

@@ -15,6 +15,7 @@ import {
   X,
   CheckCircle,
   Clock,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,11 +32,12 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/account/", icon: LayoutDashboard, label: "Дашборд", roles: ["admin", "manager"] },
-  { to: "/account/projects", icon: Home, label: "Проекты", roles: ["admin", "editor", "manager"] },
+  { to: "/account/projects", icon: Home, label: "Проекты", roles: ["admin", "editor"] },
+  { to: "/account/objects", icon: Building2, label: "Наши объекты", roles: ["admin", "editor"] },
   { to: "/account/gallery", icon: Image, label: "Галерея", roles: ["admin", "editor"] },
   { to: "/account/moderation", icon: FileText, label: "Контент", roles: ["admin", "editor"] },
   { to: "/account/forms", icon: MessageSquare, label: "Заявки", roles: ["admin", "manager"] },
-  { to: "/account/news", icon: Newspaper, label: "Новости", roles: ["admin", "editor", "manager"] },
+  { to: "/account/news", icon: Newspaper, label: "Новости", roles: ["admin", "editor"] },
   { to: "/account/users", icon: Users, label: "Пользователи", roles: ["admin"] },
 ];
 

@@ -23,87 +23,54 @@ const ProjectsDropdown = ({ isMenuOpen, onMenuOpen, onClose, isMobile = false }:
       onMouseLeave={() => !isMobile && onMenuOpen(false)}
     >
       <button 
-        className="text-primary/80 hover:text-primary transition-colors font-medium flex items-center gap-1"
+        className="flex items-center gap-1 px-3.5 py-2 text-[13.5px] font-medium text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-50 transition-all"
         onClick={() => isMobile && onMenuOpen(!isMenuOpen)}
       >
         Проекты домов
-        <ChevronDown size={16} className={`transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={13} className={`transition-transform duration-200 ${isMenuOpen ? 'rotate-180' : ''}`} />
       </button>
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.2 }}
-            className={`${isMobile ? "" : "absolute left-0"} mt-3 w-64 bg-white rounded-lg shadow-lg overflow-hidden z-50`}
+            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className={`${isMobile ? "" : "absolute left-0"} mt-1.5 w-64 bg-white rounded-2xl shadow-xl border border-gray-100/80 overflow-hidden z-50 py-1.5`}
           >
-            <div className="flex flex-col divide-y divide-gray-100">
-              <Link 
-                to="/projects/standard" 
-                className="p-4 hover:bg-primary/5 transition-colors"
+            {[
+              { to: "/projects/standard", Icon: FolderCheck, label: "Серийные проекты", sub: "Готовые решения" },
+              { to: "/projects/custom", Icon: Home, label: "Индивидуальные проекты", sub: "Уникальные дома" },
+              { to: "/projects/commercial", Icon: Building, label: "Коммерческие проекты", sub: "Офисы и бизнес-объекты" },
+            ].map(({ to, Icon, label, sub }) => (
+              <Link key={to} to={to}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
                 onClick={handleClose}
               >
-                <div className="flex items-center gap-3">
-                  <FolderCheck className="h-5 w-5 text-primary/70" />
-                  <div>
-                    <div className="font-medium text-primary">Серийные проекты</div>
-                    <div className="text-xs text-muted-foreground mt-1">Готовые решения для быстрого старта</div>
-                  </div>
+                <div className="w-8 h-8 rounded-xl bg-primary/8 flex items-center justify-center flex-shrink-0">
+                  <Icon className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <div className="text-[13px] font-semibold text-gray-800">{label}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{sub}</div>
                 </div>
               </Link>
-              
-              <Link 
-                to="/projects/custom" 
-                className="p-4 hover:bg-primary/5 transition-colors"
-                onClick={handleClose}
-              >
-                <div className="flex items-center gap-3">
-                  <Home className="h-5 w-5 text-primary/70" />
-                  <div>
-                    <div className="font-medium text-primary">Индивидуальные проекты</div>
-                    <div className="text-xs text-muted-foreground mt-1">Уникальные дома по вашим пожеланиям</div>
-                  </div>
-                </div>
-              </Link>
-              
-              <Link 
-                to="/projects/commercial" 
-                className="p-4 hover:bg-primary/5 transition-colors"
-                onClick={handleClose}
-              >
-                <div className="flex items-center gap-3">
-                  <Building className="h-5 w-5 text-primary/70" />
-                  <div>
-                    <div className="font-medium text-primary">Коммерческие проекты</div>
-                    <div className="text-xs text-muted-foreground mt-1">Офисы, магазины и бизнес-объекты</div>
-                  </div>
-                </div>
-              </Link>
-              
-              <Link 
-                to="/projects/gallery" 
-                className="p-4 hover:bg-primary/5 transition-colors"
-                onClick={handleClose}
-              >
-                <div className="flex items-center gap-3">
-                  <svg className="h-5 w-5 text-primary/70" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5Z"></path>
-                    <path d="M10 5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V5Z"></path>
-                    <path d="M16 5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V5Z"></path>
-                    <path d="M4 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2Z"></path>
-                    <path d="M10 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-2Z"></path>
-                    <path d="M16 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-2Z"></path>
-                    <path d="M4 17a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2Z"></path>
-                    <path d="M10 17a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-2Z"></path>
-                  </svg>
-                  <div>
-                    <div className="font-medium text-primary">Галерея наших работ</div>
-                    <div className="text-xs text-muted-foreground mt-1">Фотографии реализованных проектов</div>
-                  </div>
-                </div>
-              </Link>
-            </div>
+            ))}
+            <div className="mx-3 my-1 border-t border-gray-100" />
+            <Link to="/projects/gallery"
+              className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
+              onClick={handleClose}
+            >
+              <div className="w-8 h-8 rounded-xl bg-primary/8 flex items-center justify-center flex-shrink-0">
+                <svg className="h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+                </svg>
+              </div>
+              <div>
+                <div className="text-[13px] font-semibold text-gray-800">Галерея работ</div>
+                <div className="text-xs text-gray-400 mt-0.5">Реализованные проекты</div>
+              </div>
+            </Link>
           </motion.div>
         )}
       </AnimatePresence>

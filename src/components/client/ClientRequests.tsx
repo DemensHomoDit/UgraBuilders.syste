@@ -167,7 +167,7 @@ const ClientRequests: React.FC<ClientRequestsProps> = ({ user }) => {
   const [formTopic, setFormTopic] = useState<string>("");
   const [formMessage, setFormMessage] = useState<string>("");
   const [formName, setFormName] = useState<string>(user.username || "");
-  const [formPhone, setFormPhone] = useState<string>((user as any).phone || "");
+  const [formPhone, setFormPhone] = useState<string>(user.phone || "");
 
   useEffect(() => {
     loadData();
@@ -194,8 +194,8 @@ const ClientRequests: React.FC<ClientRequestsProps> = ({ user }) => {
       const formData = formsResult.data ?? [];
       const orderData = ordersResult.data ?? [];
 
-      const userEmail = (user as any).email?.toLowerCase() || "";
-      const userPhone = (user as any).phone || "";
+      const userEmail = user.email?.toLowerCase() || "";
+      const userPhone = user.phone || "";
 
       const filteredForms = formData.filter((r: any) => {
         const d = r.data || {};

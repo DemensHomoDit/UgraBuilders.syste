@@ -1,13 +1,21 @@
+import Navbar from "@/components/Navbar";
+import HeroCarousel from "@/components/HeroCarousel";
+import ProjectCategories from "@/components/ProjectCategories";
+import WhyChooseUs from "@/components/WhyChooseUs";
+import ProjectCarousel from "@/components/projects/ProjectCarousel";
+import Footer from "@/components/Footer";
 
-import React from 'react';
-import Index from './Index';
-
-/**
- * Компонент Home перенаправляет на Index для обеспечения 
- * обратной совместимости со старыми маршрутами
- */
 const Home = () => {
-  return <Index />;
+  return (
+    <main className="min-h-screen">
+      <Navbar />
+      <HeroCarousel />
+      <ProjectCategories />
+      <WhyChooseUs />
+      <ProjectCarousel />
+      <Footer />
+    </main>
+  );
 };
 
 export default Home;

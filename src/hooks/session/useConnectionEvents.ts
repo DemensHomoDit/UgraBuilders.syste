@@ -43,14 +43,14 @@ export function useConnectionEvents(actions: ConnectionStateActions) {
     const handleDisconnected = () => {
       setIsReconnecting(true);
       setIsConnected(false);
-      setLastError("Потеряно соединение с Supabase");
+      setLastError("Потеряно соединение с базой данных");
     };
 
     const handleConnectionFailed = (event: CustomEvent) => {
       const errorMessage = event.detail?.message || "Неизвестная ошибка";
       setIsReconnecting(false);
       setIsConnected(false);
-      setLastError(`Ошибка подключения к Supabase: ${errorMessage}`);
+      setLastError(`Ошибка подключения к базе данных: ${errorMessage}`);
       toast.error("Ошибка подключения", {
         description: errorMessage
       });
@@ -58,16 +58,16 @@ export function useConnectionEvents(actions: ConnectionStateActions) {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    window.addEventListener('supabase:reconnected', handleReconnected as EventListener);
-    window.addEventListener('supabase:disconnected', handleDisconnected as EventListener);
-    window.addEventListener('supabase:connection-failed', handleConnectionFailed as EventListener);
+    window.addEventListener('db:reconnected', handleReconnected as EventListener);
+    window.addEventListener('db:disconnected', handleDisconnected as EventListener);
+    window.addEventListener('db:connection-failed', handleConnectionFailed as EventListener);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('supabase:reconnected', handleReconnected as EventListener);
-      window.removeEventListener('supabase:disconnected', handleDisconnected as EventListener);
-      window.removeEventListener('supabase:connection-failed', handleConnectionFailed as EventListener);
+      window.removeEventListener('db:reconnected', handleReconnected as EventListener);
+      window.removeEventListener('db:disconnected', handleDisconnected as EventListener);
+      window.removeEventListener('db:connection-failed', handleConnectionFailed as EventListener);
     };
   }, [setIsOnline, setIsReconnecting, setLastSyncTime, setIsConnected, setLastError]);
 }

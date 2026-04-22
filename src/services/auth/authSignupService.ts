@@ -50,7 +50,8 @@ class AuthSignupService {
               title: "Регистрация успешна",
               description: "Вы успешно зарегистрировались",
             });
-            return transformProfileToUser(profileData);
+            const { data: userData } = await db.from('users').select('phone, avatar').eq('id', data.user.id).maybeSingle();
+            return { ...transformProfileToUser(profileData), phone: userData?.phone || null, avatar: userData?.avatar || null };
           }
           const { data: manualProfile, error: manualProfileError } = await db
             .from('user_profiles')

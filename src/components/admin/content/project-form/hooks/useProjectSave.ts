@@ -34,7 +34,7 @@ export const useProjectSave = (
         return null;
       }
 
-      // Преобразуем данные под supabase
+      // Преобразуем данные для сохранения
       const dataToSave = prepareProjectData(projectData, userId, { initialProject });
       // Сохраняем или обновляем проект
       const savedProject = await saveOrUpdateProject(initialProject, dataToSave) as Project;

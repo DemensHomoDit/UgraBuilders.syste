@@ -277,10 +277,16 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ user }) => {
           .eq("id", client.id)
           .single();
         if (profile?.cameras) {
-          setClientCameras(JSON.parse(profile.cameras));
+          try {
+            const parsed = typeof profile.cameras === 'string' ? JSON.parse(profile.cameras) : profile.cameras;
+            setClientCameras(Array.isArray(parsed) ? parsed : []);
+          } catch { setClientCameras([]); }
         }
         if (profile?.notes) {
-          setClientNotes(JSON.parse(profile.notes));
+          try {
+            const parsed = typeof profile.notes === 'string' ? JSON.parse(profile.notes) : profile.notes;
+            setClientNotes(Array.isArray(parsed) ? parsed : []);
+          } catch { setClientNotes([]); }
         }
       } catch (err) {
         console.error("Error loading client data:", err);
@@ -458,7 +464,7 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ user }) => {
                     </Select>
                     <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
                       <Phone className="h-3 w-3" />
-                      {(client as any).phone || "Нет телефона"}
+                      {client.phone || "Нет телефона"}
                     </Button>
                     <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
                       <Mail className="h-3 w-3" />
@@ -952,13 +958,13 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ user }) => {
                 />
                 <Select
                   value={newTask.client_id}
-                  onValueChange={(v) => setNewTask((p) => ({ ...p, client_id: v }))}
+                  onValueChange={(v) => setNewTask((p) => ({ ...p, client_id: v === "none" ? "" : v }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Клиент (необязательно)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Без клиента</SelectItem>
+                    <SelectItem value="none">Без клиента</SelectItem>
                     {clients.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.username}

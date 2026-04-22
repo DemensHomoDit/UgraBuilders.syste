@@ -40,7 +40,7 @@ class ProjectImageService {
       const nextOrder = existingImages && existingImages.length > 0 ? 
         (existingImages[0].display_order || 0) + 1 : 0;
       
-      // Добавляем изображение напрямую через интерфейс Supabase
+      // Добавляем изображение через API
       const { data, error } = await db
         .from('project_images')
         .insert({
@@ -54,7 +54,7 @@ class ProjectImageService {
         .single();
       
       if (error) {
-        console.error("Supabase error adding project image:", error);
+        console.error("DB error adding project image:", error);
         throw error;
       }
       // Преобразуем в нужный формат
@@ -99,7 +99,7 @@ class ProjectImageService {
         .eq('id', id);
       
       if (error) {
-        console.error("Supabase error updating image description:", error);
+        console.error("DB error updating image description:", error);
         throw error;
       }
       

@@ -101,7 +101,7 @@ const StorageBucketCheck: React.FC<StorageBucketCheckProps> = ({
           <div className="text-sm whitespace-pre-wrap">
             <p>{error}</p>
             <p className="mt-2">
-              Проверьте, правильно ли настроен доступ к хранилищу в Supabase.
+              Проверьте, правильно ли настроен доступ к хранилищу.
             </p>
           </div>
         ) : (

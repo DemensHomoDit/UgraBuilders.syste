@@ -1,89 +1,73 @@
-
-import { Award, Clock, Users, Hammer, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { ArrowUpRight, Shield, Clock, Users, Star, Banknote, Snowflake } from "lucide-react";
 
-const reasons = [
-  {
-    title: "КАЧЕСТВО",
-    description: "Мы используем только проверенные материалы и передовые технологии строительства",
-    icon: <Award className="h-8 w-8 md:h-10 md:w-10 text-primary" />,
-    link: "/about"
-  },
-  {
-    title: "ТОЧНЫЕ СРОКИ",
-    description: "Ваш дом будет построен точно в срок благодаря отлаженным процессам",
-    icon: <Clock className="h-8 w-8 md:h-10 md:w-10 text-primary" />,
-    link: "/process"
-  },
-  {
-    title: "ОПЫТНАЯ КОМАНДА",
-    description: "Наши специалисты имеют более 15 лет опыта в строительстве",
-    icon: <Users className="h-8 w-8 md:h-10 md:w-10 text-primary" />,
-    link: "/about"
-  },
-  {
-    title: "ИНДИВИДУАЛЬНЫЙ ПОДХОД",
-    description: "Мы учитываем все пожелания и создаем дом вашей мечты",
-    icon: <Hammer className="h-8 w-8 md:h-10 md:w-10 text-primary" />,
-    link: "/services"
-  },
-  {
-    title: "ГАРАНТИЯ",
-    description: "Предоставляем гарантию на все виды работ и материалы",
-    icon: <Shield className="h-8 w-8 md:h-10 md:w-10 text-primary" />,
-    link: "/services"
-  }
+const items = [
+  { icon: Star, title: "Качество материалов", text: "Только сертифицированные материалы. Многоэтапный контроль на каждом этапе.", link: "/about" },
+  { icon: Clock, title: "Точные сроки", text: "Сроки фиксируются в договоре. 15 лет — ни одного серьёзного опоздания.", link: "/process" },
+  { icon: Users, title: "Опытная команда", text: "120+ специалистов в штате. Архитекторы, инженеры, строители.", link: "/about" },
+  { icon: Shield, title: "Гарантия 10 лет", text: "Расширенная гарантия на конструктив и инженерные системы.", link: "/services" },
+  { icon: Banknote, title: "Прозрачная смета", text: "Детальная смета без скрытых платежей. Цена фиксируется в договоре.", link: "/contacts" },
+  { icon: Snowflake, title: "Климат Югры", text: "Знаем нюансы северного строительства. Проектируем для суровых зим.", link: "/services" },
 ];
 
-const WhyChooseUs = () => {
+export default function WhyChooseUs() {
   return (
-    <section className="py-12 md:py-16 lg:py-24 relative bg-white overflow-hidden">
-      <div className="absolute inset-0 bg-grid-pattern opacity-5" />
-      <div className="container mx-auto px-4 relative">
+    <section className="py-20 md:py-28 bg-gray-50/60">
+      <div className="max-w-[1320px] mx-auto px-5 md:px-8">
+        {/* Шапка */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-10 md:mb-16"
+          className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-14"
         >
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary mb-4 text-center">
-            Почему выбирают нас
-          </h2>
-          <div className="w-16 md:w-20 h-1 bg-primary/20 mx-auto mb-4 md:mb-6" />
-          <p className="text-sm md:text-base text-muted-foreground max-w-2xl mx-auto px-4 text-pretty text-center">
-            Мы строим не просто дома, а создаем пространство для счастливой жизни. 
-            Наша команда профессионалов поможет воплотить в жизнь ваши самые смелые идеи.
-          </p>
+          <div>
+            <p className="label-tag mb-4">Преимущества</p>
+            <h2 className="text-4xl md:text-5xl text-gray-900 tracking-tight max-w-md">
+              Почему выбирают UgraBuilders
+            </h2>
+          </div>
+          <Link to="/about"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:gap-3 transition-all"
+          >
+            О компании <ArrowUpRight size={16} />
+          </Link>
         </motion.div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 lg:gap-8">
-          {reasons.map((reason, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: index * 0.1 }}
-              className="group relative"
-            >
-              <Link to={reason.link} className="block h-full">
-                <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-primary/10 rounded-2xl transform transition-transform group-hover:scale-105 duration-300" />
-                <div className="relative bg-white rounded-2xl p-4 md:p-6 shadow-sm hover:shadow-md transition-all duration-300 h-full flex flex-col items-center text-center">
-                  <div className="mb-3 md:mb-4 p-3 md:p-4 rounded-full bg-primary/10 group-hover:bg-primary/15 transition-colors duration-300">
-                    {reason.icon}
+        {/* Сетка */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {items.map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <motion.div key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.07, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <Link to={item.link}
+                  className="group flex flex-col gap-4 bg-white rounded-3xl p-7 hover:shadow-[0_8px_40px_rgba(0,0,0,0.08)] transition-all duration-300 h-full border border-gray-100/80"
+                >
+                  <div className="w-11 h-11 rounded-2xl bg-primary/8 flex items-center justify-center group-hover:bg-primary/12 transition-colors">
+                    <Icon size={20} className="text-primary" />
                   </div>
-                  <h3 className="text-base md:text-lg font-bold text-primary mb-2 md:mb-3 text-center">{reason.title}</h3>
-                  <p className="text-muted-foreground text-xs md:text-sm text-center">{reason.description}</p>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900 mb-2 tracking-tight group-hover:text-primary transition-colors">
+                      {item.title}
+                    </h3>
+                    <p className="text-sm text-gray-500 leading-relaxed">{item.text}</p>
+                  </div>
+                  <div className="mt-auto pt-2">
+                    <ArrowUpRight size={16} className="text-gray-300 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-200" />
+                  </div>
+                </Link>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </section>
   );
-};
-
-export default WhyChooseUs;
+}

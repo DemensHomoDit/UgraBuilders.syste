@@ -13,7 +13,7 @@ const cron = require("node-cron");
 const { Pool } = require("pg");
 require("dotenv").config();
 
-// ─── Config ──────────────────────────────────────────────────────────────────
+// --- Config ------------------------------------------------------------------
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const JWT_SECRET = process.env.JWT_SECRET || "";
@@ -38,7 +38,7 @@ if (process.env.NODE_ENV === "production" && !CORS_ORIGIN) {
   process.exit(1);
 }
 
-// ─── DB Pool ─────────────────────────────────────────────────────────────────
+// --- DB Pool -----------------------------------------------------------------
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -52,7 +52,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-// ─── Allowed tables ───────────────────────────────────────────────────────────
+// --- Allowed tables -----------------------------------------------------------
 
 const ALLOWED_TABLES = [
   "users",
@@ -82,6 +82,9 @@ const ALLOWED_TABLES = [
   "client_feed",
   "guest_access_links",
   "client_documents",
+  "our_objects",
+  "our_object_images",
+  "our_object_reviews",
 ];
 
 const tableColumnsCache = new Map();
@@ -126,7 +129,7 @@ async function getTableColumns(tableName) {
   return cols;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// --- Helpers -----------------------------------------------------------------
 
 function buildWhereClause(filters = [], startIndex = 1) {
   if (!filters || !filters.length)
@@ -136,55 +139,85 @@ function buildWhereClause(filters = [], startIndex = 1) {
   let idx = startIndex;
   for (const f of filters) {
     const { op, field, value } = f;
-    if (!field) continue;
-    const safeField = field.replace(/[^a-zA-Z0-9_]/g, "");
+    const safeField = field ? field.replace(/[^a-zA-Z0-9_.]/g, "") : "";
     switch (op) {
       case "eq":
-        conditions.push(`${safeField} = $${idx++}`);
+        if (!safeField) break;
+        conditions.push(safeField + " = $" + idx++);
         params.push(value);
         break;
       case "neq":
-        conditions.push(`${safeField} != $${idx++}`);
+        if (!safeField) break;
+        conditions.push(safeField + " != $" + idx++);
         params.push(value);
         break;
       case "gt":
-        conditions.push(`${safeField} > $${idx++}`);
+        if (!safeField) break;
+        conditions.push(safeField + " > $" + idx++);
         params.push(value);
         break;
       case "gte":
-        conditions.push(`${safeField} >= $${idx++}`);
+        if (!safeField) break;
+        conditions.push(safeField + " >= $" + idx++);
         params.push(value);
         break;
       case "lt":
-        conditions.push(`${safeField} < $${idx++}`);
+        if (!safeField) break;
+        conditions.push(safeField + " < $" + idx++);
         params.push(value);
         break;
       case "lte":
-        conditions.push(`${safeField} <= $${idx++}`);
+        if (!safeField) break;
+        conditions.push(safeField + " <= $" + idx++);
         params.push(value);
         break;
       case "like":
-        conditions.push(`${safeField} LIKE $${idx++}`);
+        if (!safeField) break;
+        conditions.push(safeField + " LIKE $" + idx++);
         params.push(value);
         break;
       case "ilike":
-        conditions.push(`${safeField} ILIKE $${idx++}`);
+        if (!safeField) break;
+        conditions.push(safeField + " ILIKE $" + idx++);
         params.push(value);
         break;
       case "in": {
+        if (!safeField) break;
         const vals = Array.isArray(value) ? value : [value];
-        conditions.push(`${safeField} = ANY($${idx++})`);
+        conditions.push(safeField + " = ANY($" + idx++ + ")");
         params.push(vals);
         break;
       }
       case "is":
+        if (!safeField) break;
         if (value === null || value === "null") {
-          conditions.push(`${safeField} IS NULL`);
+          conditions.push(safeField + " IS NULL");
         } else {
-          conditions.push(`${safeField} = $${idx++}`);
+          conditions.push(safeField + " = $" + idx++);
           params.push(value);
         }
         break;
+      case "or": {
+        // value is a string like "assigned_to.eq.UUID,created_by.eq.UUID"
+        const orParts = String(value).split(",");
+        const orConditions = [];
+        for (const part of orParts) {
+          const dotIdx = part.indexOf(".");
+          const dotIdx2 = part.indexOf(".", dotIdx + 1);
+          if (dotIdx === -1 || dotIdx2 === -1) continue;
+          const orField = part.slice(0, dotIdx).replace(/[^a-zA-Z0-9_]/g, "");
+          const orOp = part.slice(dotIdx + 1, dotIdx2);
+          const orVal = part.slice(dotIdx2 + 1);
+          if (orOp === "eq") {
+            orConditions.push(orField + " = $" + idx++);
+            params.push(orVal);
+          }
+        }
+        if (orConditions.length) {
+          conditions.push("(" + orConditions.join(" OR ") + ")");
+        }
+        break;
+      }
       default:
         break;
     }
@@ -218,7 +251,7 @@ function verifyToken(token) {
   }
 }
 
-// ─── Auth Middleware ──────────────────────────────────────────────────────────
+// --- Auth Middleware ----------------------------------------------------------
 
 const optionalAuth = async (req, _res, next) => {
   try {
@@ -241,20 +274,20 @@ const authMiddleware = (roles) => async (req, res, next) => {
   try {
     const h = req.headers.authorization;
     if (!h || !h.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Требуется авторизация" });
+      return res.status(401).json({ error: "��������� �����������" });
     }
     const { decoded, error } = verifyToken(h.replace("Bearer ", "").trim());
     if (error || !decoded) {
-      return res.status(401).json({ error: "Неверный токен" });
+      return res.status(401).json({ error: "�������� �����" });
     }
     const r = await pool.query(
       "SELECT id, email, username, role, phone, avatar FROM users WHERE id = $1",
       [decoded.userId],
     );
     if (!r.rows[0])
-      return res.status(401).json({ error: "Пользователь не найден" });
+      return res.status(401).json({ error: "������������ �� ������" });
     if (roles && roles.length && !roles.includes(r.rows[0].role)) {
-      return res.status(403).json({ error: "Недостаточно прав" });
+      return res.status(403).json({ error: "������������ ����" });
     }
     req.user = r.rows[0];
     next();
@@ -263,7 +296,7 @@ const authMiddleware = (roles) => async (req, res, next) => {
   }
 };
 
-// ─── Storage helpers ──────────────────────────────────────────────────────────
+// --- Storage helpers ----------------------------------------------------------
 
 function ensureBucketDir(bucket) {
   const dir = path.join(__dirname, "uploads", bucket);
@@ -271,7 +304,7 @@ function ensureBucketDir(bucket) {
   return dir;
 }
 
-// Создаём нужные папки при старте
+// ������ ������ ����� ��� ������
 [
   "client-photos",
   "client-files",
@@ -303,7 +336,7 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 
-// ─── App ──────────────────────────────────────────────────────────────────────
+// --- App ----------------------------------------------------------------------
 
 const app = express();
 
@@ -344,7 +377,7 @@ if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "dist")));
 }
 
-// ─── Auth endpoints ───────────────────────────────────────────────────────────
+// --- Auth endpoints -----------------------------------------------------------
 
 // POST /api/auth/signup
 app.post("/api/auth/signup", async (req, res) => {
@@ -357,7 +390,7 @@ app.post("/api/auth/signup", async (req, res) => {
     if (!cleanSignupEmail || !cleanSignupPassword) {
       return res
         .status(400)
-        .json({ data: null, error: { message: "Email и пароль обязательны" } });
+        .json({ data: null, error: { message: "Email � ������ �����������" } });
     }
     const exists = await pool.query("SELECT id FROM users WHERE email = $1", [
       cleanSignupEmail,
@@ -365,7 +398,7 @@ app.post("/api/auth/signup", async (req, res) => {
     if (exists.rows[0]) {
       return res.status(400).json({
         data: null,
-        error: { message: "Пользователь уже существует" },
+        error: { message: "������������ ��� ����������" },
       });
     }
     const passwordHash = await bcrypt.hash(cleanSignupPassword, 10);
@@ -411,7 +444,7 @@ app.post("/api/auth/login", async (req, res) => {
     if (!cleanEmail || !cleanPassword) {
       return res
         .status(400)
-        .json({ data: null, error: { message: "Email и пароль обязательны" } });
+        .json({ data: null, error: { message: "Email � ������ �����������" } });
     }
     const r = await pool.query(
       "SELECT id, email, username, role, password_hash, client_stage FROM users WHERE email = $1",
@@ -421,7 +454,7 @@ app.post("/api/auth/login", async (req, res) => {
     if (!user || !(await bcrypt.compare(cleanPassword, user.password_hash))) {
       return res
         .status(401)
-        .json({ data: null, error: { message: "Неверный email или пароль" } });
+        .json({ data: null, error: { message: "�������� email ��� ������" } });
     }
     const safeUser = {
       id: user.id,
@@ -491,14 +524,14 @@ app.get("/api/auth/user", async (req, res) => {
     if (!h || !h.startsWith("Bearer ")) {
       return res.status(401).json({
         data: { user: null },
-        error: { message: "Требуется авторизация" },
+        error: { message: "��������� �����������" },
       });
     }
     const { decoded, error } = verifyToken(h.replace("Bearer ", "").trim());
     if (error || !decoded) {
       return res
         .status(401)
-        .json({ data: { user: null }, error: { message: "Неверный токен" } });
+        .json({ data: { user: null }, error: { message: "�������� �����" } });
     }
     const r = await pool.query(
       "SELECT id, email, username, role, phone, avatar FROM users WHERE id = $1",
@@ -507,7 +540,7 @@ app.get("/api/auth/user", async (req, res) => {
     if (!r.rows[0]) {
       return res
         .status(404)
-        .json({ data: { user: null }, error: { message: "Не найден" } });
+        .json({ data: { user: null }, error: { message: "�� ������" } });
     }
     return res.json({ data: { user: r.rows[0] }, error: null });
   } catch (err) {
@@ -518,7 +551,7 @@ app.get("/api/auth/user", async (req, res) => {
   }
 });
 
-// ─── Generic CRUD ─────────────────────────────────────────────────────────────
+// --- Generic CRUD -------------------------------------------------------------
 
 // GET /api/db/:collection
 app.get("/api/db/:collection", optionalAuth, async (req, res) => {
@@ -605,7 +638,7 @@ app.post("/api/db/:collection", optionalAuth, async (req, res) => {
         item.created_at = new Date().toISOString();
       if (hasUpdatedAt) item.updated_at = new Date().toISOString();
 
-      // Сериализуем plain-object поля (JSONB)
+      // ����������� plain-object ���� (JSONB)
       const processedItem = {};
       for (const [k, v] of Object.entries(item)) {
         if (v !== null && typeof v === "object" && !Array.isArray(v)) {
@@ -684,7 +717,7 @@ app.patch("/api/db/:collection", optionalAuth, async (req, res) => {
       data.updated_at = new Date().toISOString();
     }
 
-    // Сериализуем plain-object поля (JSONB)
+    // ����������� plain-object ���� (JSONB)
     const processedData = {};
     for (const [k, v] of Object.entries(data)) {
       if (v !== null && typeof v === "object" && !Array.isArray(v)) {
@@ -760,7 +793,7 @@ app.delete("/api/db/:collection", optionalAuth, async (req, res) => {
   }
 });
 
-// ─── Storage / File Upload ────────────────────────────────────────────────────
+// --- Storage / File Upload ----------------------------------------------------
 
 // GET /api/storage/buckets
 app.get("/api/storage/buckets", (_req, res) => {
@@ -836,7 +869,7 @@ app.delete("/api/storage/:bucket/remove", (req, res) => {
   }
 });
 
-// ─── Client Files API ─────────────────────────────────────────────────────────
+// --- Client Files API ---------------------------------------------------------
 
 // GET /api/client-files/:clientId/:folderType
 app.get(
@@ -920,7 +953,7 @@ app.delete("/api/client-files/:fileId", optionalAuth, async (req, res) => {
   }
 });
 
-// ─── Client Photos API ────────────────────────────────────────────────────────
+// --- Client Photos API --------------------------------------------------------
 
 // GET /api/client-photos/:clientId
 app.get("/api/client-photos/:clientId", optionalAuth, async (req, res) => {
@@ -963,7 +996,7 @@ app.post(
           clientId,
           fileUrl,
           caption || req.file.originalname,
-          category || "Прочее",
+          category || "������",
           date ? new Date(date) : new Date(),
           uploaded_by || null,
           uploaded_by_name || null,
@@ -1051,7 +1084,7 @@ app.delete(
   },
 );
 
-// ─── RPC ──────────────────────────────────────────────────────────────────────
+// --- RPC ----------------------------------------------------------------------
 
 app.post("/api/rpc/:fn", optionalAuth, async (req, res) => {
   try {
@@ -1099,7 +1132,7 @@ app.post("/api/rpc/:fn", optionalAuth, async (req, res) => {
   }
 });
 
-// ─── Forms ────────────────────────────────────────────────────────────────────
+// --- Forms --------------------------------------------------------------------
 
 // POST /api/forms/submit
 app.post("/api/forms/submit", async (req, res) => {
@@ -1133,7 +1166,7 @@ app.post("/api/forms/submit", async (req, res) => {
     );
     return res.json({
       success: true,
-      message: "Форма отправлена",
+      message: "����� ����������",
       data: { id },
     });
   } catch (err) {
@@ -1241,7 +1274,7 @@ app.patch(
   },
 );
 
-// ─── Admin users ──────────────────────────────────────────────────────────────
+// --- Admin users --------------------------------------------------------------
 
 // GET /api/admin/users
 app.get("/api/admin/users", authMiddleware(["admin"]), async (req, res) => {
@@ -1383,7 +1416,7 @@ app.patch(
       if (!allowedRoles.includes(role)) {
         return res
           .status(400)
-          .json({ success: false, error: "Недопустимая роль" });
+          .json({ success: false, error: "������������ ����" });
       }
 
       await pool.query("UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2", [
@@ -1588,14 +1621,14 @@ app.post(
       if (!Array.isArray(ids) || ids.length === 0) {
         return res
           .status(400)
-          .json({ success: false, error: "Список IDs обязателен" });
+          .json({ success: false, error: "������ IDs ����������" });
       }
 
       const validActions = ["publish", "draft", "delete"];
       if (!validActions.includes(action)) {
         return res
           .status(400)
-          .json({ success: false, error: "Недопустимое действие" });
+          .json({ success: false, error: "������������ ��������" });
       }
 
       const cleanIds = ids
@@ -1605,7 +1638,7 @@ app.post(
       if (cleanIds.length === 0) {
         return res
           .status(400)
-          .json({ success: false, error: "Нет валидных IDs" });
+          .json({ success: false, error: "��� �������� IDs" });
       }
 
       let sql = "";
@@ -1826,7 +1859,7 @@ app.delete(
   },
 );
 
-// ─── GoodWood-style Client API ──────────────────────────────────────────────
+// --- GoodWood-style Client API ----------------------------------------------
 
 // GET /api/client/:clientId/feed
 app.get("/api/client/:clientId/feed", optionalAuth, async (req, res) => {
@@ -1934,7 +1967,7 @@ app.get("/api/guest/:token/validate", async (req, res) => {
   }
 });
 
-// ─── Health check ─────────────────────────────────────────────────────────────
+// --- Health check -------------------------------------------------------------
 
 app.get("/api/health", async (_req, res) => {
   try {
@@ -1949,7 +1982,7 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
-// ─── Telegram & Notifications (soft require) ──────────────────────────────────
+// --- Telegram & Notifications (soft require) ----------------------------------
 
 try {
   const telegramApi = require("./api/telegram.cjs");
@@ -1961,7 +1994,7 @@ try {
   app.use("/api/notifications", notifApi);
 } catch (_) {}
 
-// ─── SPA fallback (production) ────────────────────────────────────────────────
+// --- SPA fallback (production) ------------------------------------------------
 
 if (process.env.NODE_ENV === "production") {
   app.get("*", (req, res) => {
@@ -1971,7 +2004,7 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-// ─── Cron ─────────────────────────────────────────────────────────────────────
+// --- Cron ---------------------------------------------------------------------
 
 if (
   cron.validate(SYNC_SCHEDULE) &&
@@ -1985,7 +2018,7 @@ if (
   });
 }
 
-// ─── Start ────────────────────────────────────────────────────────────────────
+// --- Start --------------------------------------------------------------------
 
 app.listen(PORT, () => {
   console.log(`[Server] Running on port ${PORT}`);

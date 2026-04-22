@@ -26,6 +26,13 @@ class AuthLoginService {
         if (profileError) {
           throw profileError;
         }
+
+        const { data: userData } = await db
+          .from('users')
+          .select('phone, avatar')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
         if (!profileData) {
           const { data: newProfile, error: createProfileError } = await db
             .from('user_profiles')
@@ -39,9 +46,9 @@ class AuthLoginService {
           if (createProfileError) {
             throw createProfileError;
           }
-          return transformProfileToUser(newProfile);
+          return { ...transformProfileToUser(newProfile), phone: userData?.phone || null, avatar: userData?.avatar || null };
         }
-        return transformProfileToUser(profileData);
+        return { ...transformProfileToUser(profileData), phone: userData?.phone || null, avatar: userData?.avatar || null };
       } catch (error) {
         throw error;
       }

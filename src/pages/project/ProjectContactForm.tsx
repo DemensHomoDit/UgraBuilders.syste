@@ -152,7 +152,7 @@ Email: ${email}
 ${message ? `Сообщение: ${message}` : ''}
       `.trim();
 
-      // Отправляем данные в базу данных Supabase
+      // Отправляем данные в базу данных
       const { error } = await db
         .from('project_orders')
         .insert({
